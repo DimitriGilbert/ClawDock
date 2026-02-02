@@ -1,0 +1,3 @@
+{
+  "extends": "@ClawDock/config/tsconfig.base.json"
+}

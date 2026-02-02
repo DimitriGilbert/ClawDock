@@ -1,0 +1,33 @@
+{
+  "name": "ClawDock",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "check-types": "turbo check-types",
+    "dev:native": "turbo -F native dev",
+    "dev:web": "turbo -F web dev",
+    "dev:server": "turbo -F server dev",
+    "db:push": "turbo -F @ClawDock/db db:push",
+    "db:studio": "turbo -F @ClawDock/db db:studio",
+    "db:generate": "turbo -F @ClawDock/db db:generate",
+    "db:migrate": "turbo -F @ClawDock/db db:migrate"
+  },
+  "dependencies": {
+    "@ClawDock/env": "workspace:*",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@ClawDock/config": "workspace:*",
+    "@types/node": "catalog:",
+    "turbo": "^2.6.3",
+    "typescript": "catalog:"
+  },
+  "packageManager": "pnpm@10.10.0"
+}
