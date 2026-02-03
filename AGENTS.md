@@ -26,12 +26,13 @@ This project uses pnpm.
 - **Don't leave glue code for last.** Mount routers, add middleware, and register endpoints *as you build them*, not as a final step.
 
 ### 2. The Integration Mandate
-- A subagent can build a module, but **YOU** (the primary agent) must integrate it.
+- A subagent can build a module, but **YOU** (the primary agent) must verify the integration.
 - **Explicitly check:**
   - Is the router mounted in `appRouter`?
   - Is the Hono route mounted in `server.ts`?
   - Is the frontend component actually calling the real API (not mocks)?
   - Does the build pass across the *entire* monorepo?
+- You can get integration done by subagents by following the guidelines above.
 
 ### 3. Type Safety is Non-Negotiable
 - **Strict Mode**: `noImplicitAny`, `strictNullChecks` are on.
@@ -44,7 +45,7 @@ This project uses pnpm.
   - Can the frontend *actually* call the backend?
   - Are the routes *actually* mounted?
   - Does the build pass *globally*?
-- **Silo Prevention**: Do not launch 6 subagents to build 6 dependent streams simultaneously. Build serial, verify often.
+- **Silo Prevention**: Do not launch 6 subagents to build 6 dependent streams simultaneously. Parallel build is OK, but integration MUST be part of the process and verified.
 
 ## Type Safety Configuration
 
