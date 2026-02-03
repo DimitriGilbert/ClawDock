@@ -4,8 +4,8 @@ export type CreateContextOptions = {
   context: HonoContext;
 };
 
-export async function createContext({ context }: CreateContextOptions) {
-  // No auth configured
+export async function createContext({ context: _context }: CreateContextOptions) {
+  // No auth configured - context param unused but kept for API consistency
   return {
     session: null,
   };

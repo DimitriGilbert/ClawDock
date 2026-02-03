@@ -16,6 +16,8 @@
     "@hono/node-server": "^1.14.4",
     "@hono/trpc-server": "^0.4.0",
     "@trpc/server": "catalog:",
+    "ai": "^6.0.68",
+    "ai-sdk-provider-opencode-sdk": "^1.0.0",
     "dotenv": "catalog:",
     "hono": "catalog:",
     "zod": "catalog:"

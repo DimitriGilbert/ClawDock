@@ -5,6 +5,7 @@ import { trpcServer } from "@hono/trpc-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { chatRoutes } from "./routes/chat";
 
 const app = new Hono();
 
@@ -18,7 +19,7 @@ app.use(
 );
 
 app.use(
-  "/trpc/*",
+  "/api/trpc/*",
   trpcServer({
     router: appRouter,
     createContext: (_opts, context) => {
@@ -27,8 +28,15 @@ app.use(
   }),
 );
 
+// Mount chat Hono routes
+app.route("/api", chatRoutes);
+
 app.get("/", (c) => {
   return c.text("OK");
+});
+
+app.get("/health", (c) => {
+  return c.json({ status: "ok" });
 });
 
 import { serve } from "@hono/node-server";

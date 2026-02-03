@@ -16,37 +16,9 @@ This project uses pnpm.
 - Dev: `pnpm dev`
 - Type check: `pnpm check-types`
 
-## Operational Guidelines (CRITICAL)
+## Type Safety (CRITICAL)
 
-**These rules are written in blood.** Recent post-mortem analysis of the Gateway Phase 1 implementation revealed a failure pattern ("The Silo Effect") that must never be repeated.
-
-### 1. Serial Verification over Parallel Hope
-- **Never trust isolated success.** Just because a file exists doesn't mean it works.
-- **Verify end-to-end.** When building a feature (e.g., Chat), verify the entire chain: `Backend DB -> Router -> API Endpoint -> Frontend Hook -> UI Component`.
-- **Don't leave glue code for last.** Mount routers, add middleware, and register endpoints *as you build them*, not as a final step.
-
-### 2. The Integration Mandate
-- A subagent can build a module, but **YOU** (the primary agent) must integrate it.
-- **Explicitly check:**
-  - Is the router mounted in `appRouter`?
-  - Is the Hono route mounted in `server.ts`?
-  - Is the frontend component actually calling the real API (not mocks)?
-  - Does the build pass across the *entire* monorepo?
-
-### 3. Type Safety is Non-Negotiable
-- **Strict Mode**: `noImplicitAny`, `strictNullChecks` are on.
-- **Check Frequency**: Run `pnpm check-types` after *every* significant change. Do not wait until the end.
-- **No `any`**: Use `unknown` with guards or Zod schemas.
-
-### 4. The "Works on My Machine" Fallacy (Subagent Trap)
-- **Subagent success ≠ Project success.** A subagent creating a file is not a feature.
-- **Verification of Glue**: You must manually verify the connection between modules.
-  - Can the frontend *actually* call the backend?
-  - Are the routes *actually* mounted?
-  - Does the build pass *globally*?
-- **Silo Prevention**: Do not launch 6 subagents to build 6 dependent streams simultaneously. Build serial, verify often.
-
-## Type Safety Configuration
+**Type safety is non-negotiable.** This project demands strict TypeScript discipline.
 
 ### Required Compiler Options
 

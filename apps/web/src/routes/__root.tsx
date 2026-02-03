@@ -6,7 +6,8 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 
 import type { trpc } from "@/utils/trpc";
 
-import Header from "@/components/header";
+import { Header } from "@/components/layout/Header";
+import { Sidebar } from "@/components/layout/Sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -22,11 +23,11 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
     meta: [
       {
-        title: "ClawDock",
+        title: "ClawDock Gateway",
       },
       {
         name: "description",
-        content: "ClawDock is a web application",
+        content: "ClawDock - Containerized Agent Execution Platform",
       },
     ],
     links: [
@@ -38,7 +39,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   }),
 });
 
-function RootComponent() {
+function RootComponent(): React.ReactElement {
   return (
     <>
       <HeadContent />
@@ -48,9 +49,14 @@ function RootComponent() {
         disableTransitionOnChange
         storageKey="vite-ui-theme"
       >
-        <div className="grid grid-rows-[auto_1fr] h-svh">
-          <Header />
-          <Outlet />
+        <div className="grid h-svh grid-cols-[auto_1fr] grid-rows-[auto_1fr]">
+          <div className="col-span-2">
+            <Header agentName="Clawthis" />
+          </div>
+          <Sidebar className="col-start-1 row-start-2" />
+          <main className="col-start-2 row-start-2 overflow-auto bg-background">
+            <Outlet />
+          </main>
         </div>
         <Toaster richColors />
       </ThemeProvider>

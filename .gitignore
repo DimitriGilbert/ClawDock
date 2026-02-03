@@ -48,3 +48,11 @@ coverage
 .cache
 tmp
 temp
+
+# Runtime Data (IGNORED)
+data/
+.agent/
+.claude/
+.gemini/
+.kilocode/
+.opencode/

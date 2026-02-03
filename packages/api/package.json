@@ -15,7 +15,14 @@
     "@ClawDock/env": "workspace:*",
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
+    "ai": "^6.0.68",
+    "ai-sdk-provider-opencode-sdk": "^1.0.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "dockerode": "^4.0.9",
     "dotenv": "catalog:",
+    "drizzle-orm": "^0.45.1",
+    "yaml": "^2.8.2",
     "zod": "catalog:"
   },
   "devDependencies": {
