@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import {
   Layers,
@@ -370,16 +370,16 @@ function ContainerCard({ container, onInspect }: ContainerCardProps): React.Reac
 
         {/* Secondary Actions */}
         <div className="flex items-center justify-between w-full pt-3 border-t">
-          <Link
-            to={"/logs/$containerId" as any}
-            params={{ containerId: container.id } as any}
-            className={cn(
-              "inline-flex items-center justify-center whitespace-nowrap rounded-none text-xs font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 hover:bg-muted hover:text-foreground h-6 w-6"
-            )}
-            title="Logs"
+          {/* TODO: Add logs page route when implemented */}
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="h-6 w-6"
+            title="Logs (Coming Soon)"
+            disabled
           >
-            <FileText className="size-3.5 text-muted-foreground" />
-          </Link>
+            <FileText className="size-3.5 text-muted-foreground/50" />
+          </Button>
           
           <Button 
             variant="ghost" 
