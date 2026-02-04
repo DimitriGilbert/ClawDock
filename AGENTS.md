@@ -12,9 +12,9 @@ This project uses pnpm.
 
 ## Build & Test
 
-- Build: `pnpm build`
-- Dev: `pnpm dev`
-- Type check: `pnpm check-types`
+- Build: `pnpm run build` YOU MUST USE `pnpm run build` RUN IS MANDATORY !
+- Type check: `pnpm run check-types` YOU MUST USE `pnpm run check-types` RUN IS MANDATORY !
+- YOU **NEVER** run the dev server !!! **NEVER** USE `pnpm run dev` ! **__NEVER__**
 
 ## Operational Guidelines (CRITICAL)
 
@@ -71,6 +71,26 @@ These patterns are **never allowed** in production code:
 - `// @ts-ignore` - Fix the error, don't hide it
 - `object` as a type - Use `Record<string, unknown>` or a proper interface
 
+### Forbidden Patterns
+
+These patterns are **never allowed** in production code:
+
+- `any` - Use `unknown` with type guards instead
+- `as any` - Fix the underlying type issue
+- `: any` - Define proper parameter types
+- `// @ts-ignore` - Fix the error, don't hide it
+- `object` as a type - Use `Record<string, unknown>` or a proper interface
+
+### Forbidden Patterns
+
+These patterns are **never allowed** in production code:
+
+- `any` - Use `unknown` with type guards instead
+- `as any` - Fix the underlying type issue
+- `: any` - Define proper parameter types
+- `// @ts-ignore` - Fix the error, don't hide it
+- `object` as a type - Use `Record<string, unknown>` or a proper interface
+
 ### Encouraged Patterns
 
 - Discriminated unions for events/actions
@@ -78,6 +98,12 @@ These patterns are **never allowed** in production code:
 - Branded types for IDs (`type UserId = string & { __brand: 'UserId' }`)
 - `satisfies` for type checking without widening
 - Explicit return types on public APIs
+
+**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
+**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
+**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
+**"any" IS NOT A SOLUTION ! HIDING ERRORS IS NOT A SOLUTION !**
+**"any" IS SHIT WORK ! ANY USE OF ANY IS COMPLETE FUCKING TRASH AND YOU WILL BE OBLITERATED IF YOU USE IT !**
 
 ### Verification
 

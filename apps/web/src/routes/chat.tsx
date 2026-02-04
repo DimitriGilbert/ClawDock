@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { MessageSquare, Plus, Loader2, Send } from "lucide-react";
+import { MessageSquare, Plus, Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 
 import { trpc } from "@/utils/trpc";
 import { Button } from "@/components/ui/button";
@@ -18,9 +20,7 @@ export const Route = createFileRoute("/chat")({
 function ChatPage(): React.ReactElement {
   const queryClient = useQueryClient();
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [inputValue, setInputValue] = useState("");
-  const [messages, setMessages] = useState<Array<{id: string, role: string, content: string}>>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [input, setInput] = useState("");
 
   const { data: sessions, isLoading: sessionsLoading } = useQuery(
     trpc.chat.listSessions.queryOptions()
@@ -40,56 +40,32 @@ function ChatPage(): React.ReactElement {
     },
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Use AI SDK's useChat hook with proper types
+  const { messages, status, sendMessage } = useChat({
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
+    }),
+  });
+
+  const isLoading = status === "streaming" || status === "submitted";
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || isSubmitting) return;
-    
-    const userMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content: inputValue
-    };
-    setMessages(prev => [...prev, userMessage]);
-    setInputValue("");
-    setIsSubmitting(true);
+    if (!input.trim() || isLoading) return;
 
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+    sendMessage(
+      { text: input },
+      {
+        body: {
           sessionId: activeSessionId,
-          messages: [...messages, userMessage],
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to send message");
-      
-      const data = await response.json();
-      const assistantMessage = {
-        id: Date.now().toString(),
-        role: "assistant",
-        content: data.text
-      };
-      setMessages(prev => [...prev, assistantMessage]);
-      
-      if (!activeSessionId && data.sessionId) {
-        setActiveSessionId(data.sessionId);
-        void queryClient.invalidateQueries({
-          queryKey: trpc.chat.listSessions.queryKey(),
-        });
+        },
       }
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to send message");
-    } finally {
-      setIsSubmitting(false);
-    }
+    );
+    setInput("");
   };
 
   const handleNewChat = () => {
     createSession.mutate({});
-    setMessages([]);
-    setInputValue("");
   };
 
   const activeSession = sessions?.find((s) => s.id === activeSessionId);
@@ -110,11 +86,7 @@ function ChatPage(): React.ReactElement {
               onClick={handleNewChat}
               disabled={createSession.isPending}
             >
-              {createSession.isPending ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : (
-                <Plus className="size-3" />
-              )}
+              <Plus className="size-3" />
             </Button>
           </div>
         </CardHeader>
@@ -202,17 +174,19 @@ function ChatPage(): React.ReactElement {
                         : "bg-muted"
                     )}
                   >
-                    <p className="whitespace-pre-wrap">{message.content}</p>
+                    {message.parts.map((part, index) => {
+                      if (part.type === "text") {
+                        return (
+                          <p key={index} className="whitespace-pre-wrap">
+                            {part.text}
+                          </p>
+                        );
+                      }
+                      return null;
+                    })}
                   </div>
                 </div>
               ))}
-              {isSubmitting && (
-                <div className="flex justify-start">
-                  <div className="bg-muted px-3 py-2">
-                    <Loader2 className="size-4 animate-spin" />
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </CardContent>
@@ -221,14 +195,14 @@ function ChatPage(): React.ReactElement {
         <div className="border-t p-4">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <Input
-              value={inputValue}
-              onChange={(e) => setInputValue(e.currentTarget.value)}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
               placeholder="Type a message..."
-              disabled={isSubmitting}
+              disabled={isLoading}
               className="flex-1"
             />
-            <Button type="submit" disabled={!inputValue.trim() || isSubmitting}>
-              {isSubmitting ? (
+            <Button type="submit" disabled={!input?.trim() || isLoading}>
+              {isLoading ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 <Send className="size-4" />

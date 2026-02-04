@@ -1,8 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { Layers, Activity, Server, CircleDot } from "lucide-react";
 
-import { trpc } from "@/utils/trpc";
+import { trpc, queryClient } from "@/utils/trpc";
 import {
   Card,
   CardContent,
@@ -17,49 +17,11 @@ export const Route = createFileRoute("/")({
   component: DashboardPage,
 });
 
-// Types for container status
-interface ContainerStatus {
-  readonly id: string;
-  readonly name: string;
-  readonly status: "running" | "stopped" | "warning";
-  readonly image: string;
-  readonly uptime: string;
-}
-
-// Mock data for containers (will be replaced with API data)
-const MOCK_CONTAINERS: readonly ContainerStatus[] = [
-  {
-    id: "api-1",
-    name: "clawdock-api",
-    status: "running",
-    image: "clawdock/api:latest",
-    uptime: "2h 34m",
-  },
-  {
-    id: "web-1",
-    name: "clawdock-web",
-    status: "running",
-    image: "clawdock/web:latest",
-    uptime: "2h 34m",
-  },
-  {
-    id: "agent-1",
-    name: "clawthis-agent",
-    status: "running",
-    image: "clawdock/agent:latest",
-    uptime: "1h 15m",
-  },
-  {
-    id: "db-1",
-    name: "postgres-db",
-    status: "running",
-    image: "postgres:16-alpine",
-    uptime: "5d 12h",
-  },
-] as const;
-
 function DashboardPage(): React.ReactElement {
   const healthCheck = useQuery(trpc.healthCheck.queryOptions());
+  const { data: containers, isLoading } = useQuery(
+    trpc.stack.listContainers.queryOptions()
+  );
 
   return (
     <div className="p-4 space-y-4">
@@ -94,21 +56,21 @@ function DashboardPage(): React.ReactElement {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Containers"
-          value={MOCK_CONTAINERS.length}
+          value={containers?.length ?? 0}
           subtitle="Total"
           icon={Server}
           status="neutral"
         />
         <StatCard
           title="Running"
-          value={MOCK_CONTAINERS.filter((c) => c.status === "running").length}
+          value={containers?.filter((c) => c.state === "running").length ?? 0}
           subtitle="Active"
           icon={CircleDot}
           status="success"
         />
         <StatCard
           title="Stopped"
-          value={MOCK_CONTAINERS.filter((c) => c.status === "stopped").length}
+          value={containers?.filter((c) => c.state === "stopped" || c.state === "exited").length ?? 0}
           subtitle="Inactive"
           icon={CircleDot}
           status="destructive"
@@ -134,11 +96,41 @@ function DashboardPage(): React.ReactElement {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3">
-            {MOCK_CONTAINERS.map((container) => (
-              <ContainerRow key={container.id} container={container} />
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="flex items-center justify-center p-4 text-muted-foreground">
+              Loading...
+            </div>
+          ) : containers?.length === 0 ? (
+            <div className="flex items-center justify-center p-4 text-muted-foreground">
+              No containers running
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <table className="w-full">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Container
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Image
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      State
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {containers?.map((container) => (
+                    <ContainerRow key={container.id} container={container} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
@@ -152,35 +144,27 @@ interface StatCardProps {
   readonly value: string | number;
   readonly subtitle: string;
   readonly icon: React.ComponentType<{ className?: string }>;
-  readonly status: "neutral" | "success" | "destructive" | "warning";
+  readonly status: "success" | "warning" | "destructive" | "neutral";
 }
 
-function StatCard({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-  status,
-}: StatCardProps): React.ReactElement {
-  const statusClasses = {
-    neutral: "bg-muted text-muted-foreground",
-    success: "bg-green-500/10 text-green-600 dark:text-green-400",
-    destructive: "bg-red-500/10 text-red-600 dark:text-red-400",
-    warning: "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400",
-  } as const;
+function StatCard({ title, value, subtitle, icon: Icon, status }: StatCardProps): React.ReactElement {
+  const statusConfig = {
+    success: "text-green-600",
+    warning: "text-yellow-600",
+    destructive: "text-red-600",
+    neutral: "text-muted-foreground",
+  };
 
   return (
-    <Card className="group">
-      <CardContent className="p-4">
+    <Card>
+      <CardContent className="p-6">
         <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-xs text-muted-foreground">{title}</p>
-            <p className="text-lg font-semibold text-foreground">{value}</p>
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+            <p className="text-2xl font-bold text-foreground">{value}</p>
             <p className="text-xs text-muted-foreground">{subtitle}</p>
           </div>
-          <div className={cn("flex h-9 w-9 items-center justify-center rounded-none", statusClasses[status])}>
-            <Icon className="size-4" />
-          </div>
+          <Icon className={cn("size-8", statusConfig[status])} />
         </div>
       </CardContent>
     </Card>
@@ -188,7 +172,18 @@ function StatCard({
 }
 
 interface ContainerRowProps {
-  readonly container: ContainerStatus;
+  readonly container: {
+    id: string;
+    names: string[];
+    image: string;
+    ports?: Array<{
+      privatePort: number;
+      publicPort?: number;
+      type: string;
+    }>;
+    state: "running" | "stopped" | "paused" | "restarting" | "dead" | "created" | "exited";
+    status?: string;
+  };
 }
 
 function ContainerRow({ container }: ContainerRowProps): React.ReactElement {
@@ -203,28 +198,111 @@ function ContainerRow({ container }: ContainerRowProps): React.ReactElement {
       label: "Stopped",
       dotClass: "bg-red-500",
     },
-    warning: {
+    paused: {
       variant: "warning" as const,
-      label: "Warning",
+      label: "Paused",
       dotClass: "bg-yellow-500",
+    },
+    restarting: {
+      variant: "warning" as const,
+      label: "Restarting",
+      dotClass: "bg-yellow-500",
+    },
+    dead: {
+      variant: "destructive" as const,
+      label: "Dead",
+      dotClass: "bg-red-500",
+    },
+    created: {
+      variant: "warning" as const,
+      label: "Created",
+      dotClass: "bg-yellow-500",
+    },
+    exited: {
+      variant: "destructive" as const,
+      label: "Exited",
+      dotClass: "bg-red-500",
     },
   } as const;
 
-  const status = statusConfig[container.status];
+  const status = statusConfig[container.state];
+  const containerName = container.names[0]?.replace(/^\//, "") || container.id;
 
   return (
-    <div className="flex items-center justify-between border p-3 transition-colors hover:bg-muted/50">
-      <div className="flex items-center gap-3">
-        <div className={cn("size-2 rounded-full", status.dotClass)} />
-        <div className="space-y-0.5">
-          <p className="text-xs font-medium text-foreground">{container.name}</p>
-          <p className="text-xs text-muted-foreground">{container.image}</p>
+    <tr className="transition-colors hover:bg-muted/50">
+      <td className="px-4 py-3 whitespace-nowrap">
+        <div className="flex items-center gap-3">
+          <div className={cn("size-2 rounded-full", status.dotClass)} />
+          <div className="space-y-0.5">
+            <p className="text-sm font-medium text-foreground">{containerName}</p>
+          </div>
         </div>
-      </div>
-      <div className="flex items-center gap-3">
-        <span className="text-xs text-muted-foreground">{container.uptime}</span>
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap">
+        <p className="text-sm text-muted-foreground">{container.image}</p>
+      </td>
+      <td className="px-4 py-3 whitespace-nowrap">
         <Badge variant={status.variant}>{status.label}</Badge>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        <ContainerActions containerId={container.id} state={container.state} />
+      </td>
+    </tr>
+  );
+}
+
+interface ContainerActionsProps {
+  readonly containerId: string;
+  readonly state: string;
+}
+
+function ContainerActions({ containerId, state }: ContainerActionsProps): React.ReactElement {
+  const stopMutation = useMutation({
+    ...trpc.stack.stopContainer.mutationOptions(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: trpc.stack.listContainers.queryKey() });
+    },
+  });
+
+  const startMutation = useMutation({
+    ...trpc.stack.startContainer.mutationOptions(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: trpc.stack.listContainers.queryKey() });
+    },
+  });
+
+  const restartMutation = useMutation({
+    ...trpc.stack.restartContainer.mutationOptions(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: trpc.stack.listContainers.queryKey() });
+    },
+  });
+
+  if (state === "running") {
+    return (
+      <div className="flex gap-2">
+        <button
+          onClick={() => stopMutation.mutate({ id: containerId })}
+          className="px-3 py-1 text-xs font-medium text-yellow-700 bg-yellow-50 rounded hover:bg-yellow-100"
+        >
+          Stop
+        </button>
+        <button
+          onClick={() => restartMutation.mutate({ id: containerId })}
+          className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100"
+        >
+          Restart
+        </button>
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => startMutation.mutate({ id: containerId })}
+      className="px-3 py-1 text-xs font-medium text-green-700 bg-green-50 rounded hover:bg-green-100"
+    >
+      Start
+    </button>
   );
 }

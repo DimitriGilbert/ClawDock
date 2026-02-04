@@ -6,6 +6,7 @@
 import YAML from "yaml";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
+import path from "node:path";
 import type {
   ComposeFile,
   ComposeService,
@@ -17,6 +18,22 @@ import type {
 // ============================================================================
 // AJV Setup for Compose Validation
 // ============================================================================
+
+const ALLOWED_BASE_DIRS = [
+  process.cwd(),
+  process.env.AGENT_DATA_PATH || "/home/didi/workspace/Code/ClawDock/data/Clawthis"
+].filter(Boolean);
+
+function validateFilePath(filePath: string): void {
+  const resolved = path.resolve(filePath);
+  const isAllowed = ALLOWED_BASE_DIRS.some(base =>
+    resolved.startsWith(path.resolve(base))
+  );
+
+  if (!isAllowed) {
+    throw new Error(`Access denied: ${filePath} is outside allowed directories`);
+  }
+}
 
 /**
  * Basic compose file schema for validation
@@ -337,6 +354,7 @@ export async function validateComposeAsync(
  * @throws Error if file cannot be read
  */
 export async function readComposeFile(filePath: string): Promise<string> {
+  validateFilePath(filePath);
   const fs = await import("fs/promises");
   return fs.readFile(filePath, "utf-8");
 }

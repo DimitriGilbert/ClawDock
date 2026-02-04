@@ -8,6 +8,7 @@ import { publicProcedure, router } from "@ClawDock/api";
 import { TRPCError } from "@trpc/server";
 import { db, chatSessions, chatMessages } from "@ClawDock/db";
 import { eq, desc } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { ChatSession, ChatMessage } from "@ClawDock/db";
 
 // ============================================================================
@@ -44,22 +45,19 @@ export const chatRouter = router({
    * List all chat sessions with message counts
    */
   listSessions: publicProcedure.query(async (): Promise<SessionWithMessageCount[]> => {
-    const sessions = await db.query.chatSessions.findMany({
-      orderBy: [desc(chatSessions.updatedAt)],
-    });
-
-    // Get message counts for each session
-    const sessionsWithCount = await Promise.all(
-      sessions.map(async (session) => {
-        const messages = await db.query.chatMessages.findMany({
-          where: eq(chatMessages.sessionId, session.id),
-        });
-        return {
-          ...session,
-          messageCount: messages.length,
-        };
+    const sessionsWithCount = await db
+      .select({
+        id: chatSessions.id,
+        title: chatSessions.title,
+        createdAt: chatSessions.createdAt,
+        updatedAt: chatSessions.updatedAt,
+        metadata: chatSessions.metadata,
+        messageCount: sql<number>`count(${chatMessages.id})::int`,
       })
-    );
+      .from(chatSessions)
+      .leftJoin(chatMessages, eq(chatSessions.id, chatMessages.sessionId))
+      .groupBy(chatSessions.id)
+      .orderBy(desc(chatSessions.updatedAt));
 
     return sessionsWithCount;
   }),

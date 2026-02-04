@@ -13,6 +13,7 @@ import {
   startContainer,
   stopContainer,
   restartContainer,
+  removeContainer,
   subscribeToContainerEvents,
   subscribeToHealthEvents,
 } from "../lib/docker/stack";
@@ -89,19 +90,10 @@ function formatContainerDetails(details: ContainerDetails): ContainerDetails {
 }
 
 // ============================================================================
-// Router Type
-// ============================================================================
-
-/**
- * Type alias for the stack router to avoid circular type inference issues
- */
-export type StackRouterType = ReturnType<typeof router>;
-
-// ============================================================================
 // Router
 // ============================================================================
 
-export const stackRouter: StackRouterType = router({
+export const stackRouter = router({
   // ============================================================================
   // Container Queries
   // ============================================================================
@@ -227,6 +219,22 @@ export const stackRouter: StackRouterType = router({
         return { success: true, containerId: input.id };
       },
     ),
+
+  /**
+   * Removes a container
+   */
+  removeContainer: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      const result = await removeContainer(input.id);
+      if (!result.success) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: result.error,
+        });
+      }
+      return { success: true };
+    }),
 
   // ============================================================================
   // Compose File Operations

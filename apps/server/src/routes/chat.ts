@@ -18,7 +18,7 @@ const ChatRequestSchema = z.object({
   messages: z.array(
     z.object({
       role: z.enum(["user", "assistant", "system"]),
-      content: z.string(),
+      content: z.string().max(100_000), // 100KB limit per message
     })
   ),
   sessionId: z.string().uuid().optional(),
@@ -42,7 +42,7 @@ chatRoutes.post("/api/chat", async (c) => {
 
     const { messages, sessionId } = parsed.data;
 
-    // Validate session if provided
+    // Validate or create session
     let validSessionId = sessionId;
     if (validSessionId) {
       const session = await db.query.chatSessions.findFirst({
@@ -51,6 +51,21 @@ chatRoutes.post("/api/chat", async (c) => {
       if (!session) {
         return c.json({ error: "Session not found" }, 404);
       }
+    } else {
+      // Auto-create session if not provided
+      const [session] = await db.insert(chatSessions)
+        .values({
+          title: "New Chat",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .returning();
+
+      if (!session) {
+        return c.json({ error: "Failed to create session" }, 500);
+      }
+
+      validSessionId = session.id;
     }
 
     // Save user message to database if we have a session
@@ -77,6 +92,17 @@ chatRoutes.post("/api/chat", async (c) => {
         content: msg.content,
       })),
       system: await buildSystemPrompt(),
+      onFinish: async ({ text }) => {
+        // Save assistant message to database
+        if (validSessionId) {
+          await db.insert(chatMessages).values({
+            sessionId: validSessionId,
+            role: "assistant",
+            content: text,
+            createdAt: new Date(),
+          });
+        }
+      },
     });
 
     // Return streaming response

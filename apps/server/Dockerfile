@@ -76,15 +76,15 @@ COPY --from=builder --chown=clawdock:nodejs /app/node_modules ./node_modules
 USER clawdock
 
 # Expose the server port
-EXPOSE 3000
+EXPOSE 3002
 
 # Environment variables
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3002
 
 # Health check using the /health endpoint
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1)).on('error', () => process.exit(1))" || exit 1
+  CMD node -e "require('http').get('http://localhost:3002/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1)).on('error', () => process.exit(1))" || exit 1
 
 # Start the server using dumb-init for proper signal handling
 ENTRYPOINT ["dumb-init", "--"]

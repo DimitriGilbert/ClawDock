@@ -18,6 +18,28 @@ app.use(
   }),
 );
 
+// Error handling middleware
+app.use("/*", async (c, next) => {
+  try {
+    await next();
+  } catch (error) {
+    console.error("Request error:", error);
+    const status = error instanceof Error && "status" in error
+      ? (error as { status: number }).status
+      : 500;
+
+    const message = error instanceof Error
+      ? error.message
+      : "Internal server error";
+
+    return c.json({
+      error: message,
+      status: "error",
+      timestamp: new Date().toISOString(),
+    }, status as 400 | 401 | 403 | 404 | 500 | 502 | 503);
+  }
+});
+
 app.use(
   "/api/trpc/*",
   trpcServer({
@@ -29,7 +51,7 @@ app.use(
 );
 
 // Mount chat Hono routes
-app.route("/api", chatRoutes);
+app.route("/", chatRoutes);
 
 app.get("/", (c) => {
   return c.text("OK");
@@ -44,7 +66,7 @@ import { serve } from "@hono/node-server";
 serve(
   {
     fetch: app.fetch,
-    port: 3000,
+    port: 3002,
   },
   (info) => {
     console.log(`Server is running on http://localhost:${info.port}`);

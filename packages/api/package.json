@@ -9,7 +9,9 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
   "dependencies": {
     "@ClawDock/db": "workspace:*",
     "@ClawDock/env": "workspace:*",
@@ -22,6 +24,7 @@
     "dockerode": "^4.0.9",
     "dotenv": "catalog:",
     "drizzle-orm": "^0.45.1",
+    "superjson": "^2.2.6",
     "yaml": "^2.8.2",
     "zod": "catalog:"
   },

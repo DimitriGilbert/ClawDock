@@ -640,6 +640,65 @@ export async function restartContainer(
 }
 
 // ============================================================================
+// Protected Container Management
+// ============================================================================
+
+const PROTECTED_CONTAINERS = ["gateway", "traefik", "postgres"];
+
+async function checkProtectedContainer(container: { name: string; labels: Array<{ key: string; value: string }> }): Promise<{ protected: boolean; reason?: string }> {
+  // Check by name
+  if (PROTECTED_CONTAINERS.includes(container.name)) {
+    return { protected: true, reason: "Container is in protected list" };
+  }
+
+  // Check by label
+  const hasProtectedLabel = container.labels.some(
+    label => label.key === "com.clawdock.protected" && label.value === "true"
+  );
+
+  if (hasProtectedLabel) {
+    return { protected: true, reason: "Container has protected label" };
+  }
+
+  return { protected: false };
+}
+
+/**
+ * Removes a container
+ * @param id - Container ID or name
+ * @returns Operation result
+ */
+export async function removeContainer(
+  id: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const docker = getDockerClient();
+    const container = docker.getContainer(id);
+
+    // Check if container is protected
+    const containerInfo = await container.inspect();
+    const containerLabels: Array<{ key: string; value: string }> = Object.entries(containerInfo.Config?.Labels ?? {}).map(
+      ([key, value]) => ({ key, value })
+    );
+
+    const checkResult = await checkProtectedContainer({
+      name: containerInfo.Name.replace(/^\//, ""),
+      labels: containerLabels
+    });
+
+    if (checkResult.protected) {
+      return { success: false, error: `Cannot remove protected container: ${checkResult.reason}` };
+    }
+
+    await container.remove();
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, error: message };
+  }
+}
+
+// ============================================================================
 // Event Streaming
 // ============================================================================
 
