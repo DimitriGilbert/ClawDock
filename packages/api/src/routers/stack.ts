@@ -373,7 +373,7 @@ export const stackRouter = router({
   /**
    * Applies the changes from the compose file to the running stack
    */
-  apply: publicProcedure.mutation(
+  applyChanges: publicProcedure.mutation(
     async (): Promise<{ success: boolean; output?: string }> => {
       try {
         const filePath = await getComposeFilePath();
