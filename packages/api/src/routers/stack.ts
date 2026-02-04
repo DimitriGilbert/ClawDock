@@ -5,7 +5,6 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { observable } from "@trpc/server/observable";
 import { publicProcedure, router } from "../index";
 import {
   listContainers,
@@ -45,6 +44,20 @@ const TimeoutSchema = z.object({
   timeout: z.number().int().min(1).max(300).optional(),
 });
 
+const StopContainerInputSchema = z.object({
+  id: z.string().min(1, "Container ID is required"),
+  timeout: z.number().int().min(1).max(300).optional(),
+});
+
+const RestartContainerInputSchema = z.object({
+  id: z.string().min(1, "Container ID is required"),
+  timeout: z.number().int().min(1).max(300).optional(),
+});
+
+const RemoveContainerInputSchema = z.object({
+  id: z.string(),
+});
+
 const UpdateComposeSchema = z.object({
   content: z.string().min(1, "Content is required"),
   comment: z.string().optional(),
@@ -52,6 +65,20 @@ const UpdateComposeSchema = z.object({
 
 const ValidateComposeSchema = z.object({
   content: z.string().min(1, "Content is required"),
+});
+
+const ParseComposeInputSchema = z.object({
+  content: z.string(),
+});
+
+const StringifyComposeInputSchema = z.object({
+  data: z.record(z.string(), z.unknown()),
+  options: z
+    .object({
+      indent: z.number().optional(),
+      lineWidth: z.number().optional(),
+    })
+    .optional(),
 });
 
 const SubscribeOptionsSchema = z.object({
@@ -148,7 +175,7 @@ export const stackRouter = router({
    * Starts a stopped container
    */
   startContainer: publicProcedure
-    .input(ContainerIdSchema.merge(TimeoutSchema.partial()))
+    .input(ContainerIdSchema.and(TimeoutSchema))
     .mutation(
       async ({
         input,
@@ -170,12 +197,7 @@ export const stackRouter = router({
    * Stops a running container
    */
   stopContainer: publicProcedure
-    .input(
-      z.object({
-        id: z.string().min(1, "Container ID is required"),
-        timeout: z.number().int().min(1).max(300).optional(),
-      }),
-    )
+    .input(StopContainerInputSchema)
     .mutation(
       async ({
         input,
@@ -197,12 +219,7 @@ export const stackRouter = router({
    * Restarts a container
    */
   restartContainer: publicProcedure
-    .input(
-      z.object({
-        id: z.string().min(1, "Container ID is required"),
-        timeout: z.number().int().min(1).max(300).optional(),
-      }),
-    )
+    .input(RestartContainerInputSchema)
     .mutation(
       async ({
         input,
@@ -224,7 +241,7 @@ export const stackRouter = router({
    * Removes a container
    */
   removeContainer: publicProcedure
-    .input(z.object({ id: z.string() }))
+    .input(RemoveContainerInputSchema)
     .mutation(async ({ input }) => {
       const result = await removeContainer(input.id);
       if (!result.success) {
@@ -337,7 +354,7 @@ export const stackRouter = router({
    * Parses compose content to structured object
    */
   parseCompose: publicProcedure
-    .input(z.object({ content: z.string() }))
+    .input(ParseComposeInputSchema)
     .query(async ({ input }) => {
       try {
         const parsed = parseCompose(input.content);
@@ -355,17 +372,7 @@ export const stackRouter = router({
    * Stringifies compose object to YAML
    */
   stringifyCompose: publicProcedure
-    .input(
-      z.object({
-        data: z.record(z.string(), z.unknown()),
-        options: z
-          .object({
-            indent: z.number().optional(),
-            lineWidth: z.number().optional(),
-          })
-          .optional(),
-      }),
-    )
+    .input(StringifyComposeInputSchema)
     .query(async ({ input }) => {
       try {
         const yaml = stringifyCompose(
@@ -392,31 +399,47 @@ export const stackRouter = router({
    */
   onContainerChange: publicProcedure
     .input(SubscribeOptionsSchema)
-    .subscription(({ input }) => {
-      return observable<ContainerEvent>((emit) => {
-        const unsubscribe = subscribeToContainerEvents(
-          (event) => {
-            emit.next(event);
-          },
-          {
-            containerId: input.containerId,
-            eventTypes: [
-              "start",
-              "stop",
-              "die",
-              "create",
-              "destroy",
-              "pause",
-              "unpause",
-              "restart",
-            ],
-          },
-        );
+    .subscription(async function* (opts) {
+      const controller = new AbortController();
+      const signal = controller.signal;
+      
+      if (opts.signal) {
+        opts.signal.addEventListener('abort', () => controller.abort());
+      }
 
-        return () => {
-          unsubscribe();
-        };
-      });
+      const queue: ContainerEvent[] = [];
+      const unsubscribe = subscribeToContainerEvents(
+        (event) => {
+          queue.push(event);
+        },
+        {
+          containerId: opts.input.containerId,
+          eventTypes: [
+            "start",
+            "stop",
+            "die",
+            "create",
+            "destroy",
+            "pause",
+            "unpause",
+            "restart",
+          ],
+        },
+      );
+
+      try {
+        while (!signal.aborted) {
+          if (queue.length > 0) {
+            const event = queue.shift();
+            if (event) {
+              yield event;
+            }
+          }
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+      } finally {
+        unsubscribe();
+      }
     }),
 
   /**
@@ -425,26 +448,38 @@ export const stackRouter = router({
    */
   onHealthChange: publicProcedure
     .input(SubscribeOptionsSchema)
-    .subscription(({ input }) => {
-      return observable<HealthEvent>((emit) => {
-        const unsubscribe = subscribeToHealthEvents(
-          (event) => {
-            emit.next(event);
-          },
-          {
-            containerId: input.containerId,
-          },
-        );
+    .subscription(async function* (opts) {
+      const controller = new AbortController();
+      const signal = controller.signal;
+      
+      if (opts.signal) {
+        opts.signal.addEventListener('abort', () => controller.abort());
+      }
 
-        return () => {
-          unsubscribe();
-        };
-      });
+      const queue: HealthEvent[] = [];
+      const unsubscribe = subscribeToHealthEvents(
+        (event) => {
+          queue.push(event);
+        },
+        {
+          containerId: opts.input.containerId,
+        },
+      );
+
+      try {
+        while (!signal.aborted) {
+          if (queue.length > 0) {
+            const event = queue.shift();
+            if (event) {
+              yield event;
+            }
+          }
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+      } finally {
+        unsubscribe();
+      }
     }),
 });
-
-// ============================================================================
-// Export Router Type
-// ============================================================================
 
 export type StackRouter = typeof stackRouter;

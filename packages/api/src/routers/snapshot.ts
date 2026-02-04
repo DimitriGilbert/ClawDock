@@ -4,7 +4,7 @@
  */
 
 import { z } from "zod";
-import { publicProcedure, router } from "@ClawDock/api";
+import { publicProcedure, router } from "../index";
 import { TRPCError } from "@trpc/server";
 import { db, snapshots } from "@ClawDock/db";
 import { eq, desc } from "drizzle-orm";

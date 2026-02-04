@@ -17,6 +17,7 @@
     "@ClawDock/env": "workspace:*",
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
+    "@types/dockerode": "^4.0.1",
     "ai": "^6.0.68",
     "ai-sdk-provider-opencode-sdk": "^1.0.0",
     "ajv": "^8.17.1",
@@ -32,5 +33,9 @@
     "@ClawDock/config": "workspace:*",
     "hono": "catalog:",
     "typescript": "catalog:"
+  },
+  "allowBuilds": {
+    "cpu-features": true,
+    "ssh2": true
   }
 }

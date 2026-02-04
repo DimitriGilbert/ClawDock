@@ -5,5 +5,8 @@ export default defineConfig({
   format: "esm",
   outDir: "./dist",
   clean: true,
-  noExternal: [/@ClawDock\/.*/],
+  external: [
+    'cpu-features',
+    '../build/Release/cpufeatures.node'
+  ],
 });

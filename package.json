@@ -29,5 +29,8 @@
     "turbo": "^2.6.3",
     "typescript": "catalog:"
   },
-  "packageManager": "pnpm@10.10.0"
+  "packageManager": "pnpm@10.10.0",
+  "allowBuilds": {
+    "cpu-features": true
+  }
 }

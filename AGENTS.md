@@ -47,6 +47,20 @@ This project uses pnpm.
   - Does the build pass *globally*?
 - **Silo Prevention**: Do not launch 6 subagents to build 6 dependent streams simultaneously. Parallel build is OK, but integration MUST be part of the process and verified.
 
+### 5. The tRPC Memory Obliteration Rule (CRITICAL - WRITTEN IN BLOOD)
+- **YOU FORGET EVERYTHING YOU KNOW ABOUT tRPC WHEN WORKING WITH IT.**
+- **ALWAYS use Context7** (`context7_query-docs`) to find current patterns before writing ANY tRPC code.
+- **tRPC changes frequently.** Your training is outdated. Using memory causes deprecated patterns, TS errors, and user rage.
+- **NEVER assume** you know how to write tRPC code. You don't. You're wrong.
+- **Context7 is mandatory** for:
+  - Subscriptions (observable vs async generator)
+  - Schema composition (merge vs and)
+  - Router type definitions
+  - Configuration options
+- **IF YOU WRITE tRPC CODE WITHOUT CHECKING CONTEXT7 FIRST, YOU HAVE FAILED.**
+- **THIS IS NON-NEGOTIABLE.** The cost of not checking is catastrophic user frustration.
+
+
 ## Type Safety Configuration
 
 ### Required Compiler Options
@@ -91,6 +105,12 @@ These patterns are **never allowed** in production code:
 - `// @ts-ignore` - Fix the error, don't hide it
 - `object` as a type - Use `Record<string, unknown>` or a proper interface
 
+**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
+**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
+**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
+**"any" IS NOT A SOLUTION ! HIDING ERRORS IS NOT A SOLUTION !**
+**"any" IS SHIT WORK ! ANY USE OF ANY IS COMPLETE FUCKING TRASH AND YOU WILL BE OBLITERATED IF YOU USE IT !**
+
 ### Encouraged Patterns
 
 - Discriminated unions for events/actions
@@ -99,11 +119,6 @@ These patterns are **never allowed** in production code:
 - `satisfies` for type checking without widening
 - Explicit return types on public APIs
 
-**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
-**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
-**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
-**"any" IS NOT A SOLUTION ! HIDING ERRORS IS NOT A SOLUTION !**
-**"any" IS SHIT WORK ! ANY USE OF ANY IS COMPLETE FUCKING TRASH AND YOU WILL BE OBLITERATED IF YOU USE IT !**
 
 ### Verification
 

@@ -5,7 +5,34 @@ catalog:
   dotenv: ^17.2.2
   zod: ^4.1.13
   typescript: ^5
-  "@types/node": ^22.13.14
+  '@types/node': ^22.13.14
   hono: ^4.8.2
-  "@trpc/server": ^11.7.2
-  "@trpc/client": ^11.7.2
+  '@trpc/server': ^11.7.2
+  '@trpc/client': ^11.7.2
+onlyBuiltDependencies:
+  - ' '
+  - ''''
+  - ','
+  - '-'
+  - '2'
+  - '['
+  - ']'
+  - a
+  - b
+  - c
+  - cpu-features
+  - e
+  - esbuild
+  - f
+  - h
+  - j
+  - msw
+  - o
+  - p
+  - protobufjs
+  - r
+  - s
+  - sharp
+  - ssh2
+  - t
+  - u
