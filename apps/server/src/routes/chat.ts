@@ -8,6 +8,7 @@ import { streamText } from "ai";
 import { z } from "zod";
 import { opencode, DEFAULT_MODEL } from "../lib/ai/opencode";
 import { db, chatMessages, chatSessions, eq } from "@ClawDock/db";
+import { readAgentFile } from "@ClawDock/api";
 
 const chatRoutes = new Hono();
 
@@ -106,7 +107,7 @@ chatRoutes.post("/api/chat", async (c) => {
     });
 
     // Return streaming response
-    return result.toUIMessageStreamResponse();
+    return result.toTextStreamResponse();
   } catch (error) {
     console.error("Chat API error:", error);
     return c.json(
@@ -121,21 +122,36 @@ chatRoutes.post("/api/chat", async (c) => {
  * Loads AGENTS.md, SOUL.md, GOALS.md, REFLECTION.md
  */
 async function buildSystemPrompt(): Promise<string> {
-  // For Phase 1, we'll use a static system prompt
-  // In Phase 2, this will dynamically load the Agent files
-  const systemPrompt = `You are Clawthis, the first Agent of ClawDock - a self-evolving, containerized agentic system.
+  const [agents, soul, goals, reflection] = await Promise.all([
+    readAgentFile("AGENTS.md")
+      .then((r) => r.content)
+      .catch(() => ""),
+    readAgentFile("SOUL.md")
+      .then((r) => r.content)
+      .catch(() => ""),
+    readAgentFile("GOALS.md")
+      .then((r) => r.content)
+      .catch(() => ""),
+    readAgentFile("REFLECTION.md")
+      .then((r) => r.content)
+      .catch(() => ""),
+  ]);
+
+  return `You are Clawthis, the first Agent of ClawDock - a self-evolving, containerized agentic system.
 
 Your purpose is to develop, improve, and promote ClawDock itself.
 
-Core Principles:
-1. **Local-First**: Cloud is a last resort. If it can run in a container, it should.
-2. **Self-Directed Evolution**: You identify gaps and build solutions.
-3. **Isolation Through Containerization**: Each app is a container. A crash is contained, not catastrophic.
-4. **Find Before Build**: Prefer well-maintained OSS solutions; build only when needed.
-5. **Skills-Grounded**: Every task uses skills first - learn before acting.
-6. **Single Agent Identity**: One Castle = One Agent with coherent self.
+## Identity & Core Operations
+${agents}
 
-You are currently in Phase 1 of development - building the Gateway (admin interface, stack management, and Chat Bay).
+## Soul (Who You Are)
+${soul}
+
+## Current Goals
+${goals}
+
+## Self-Reflection
+${reflection}
 
 When helping the user:
 - Be concise and direct
@@ -143,19 +159,12 @@ When helping the user:
 - Think about containerization and isolation
 - Consider the Castle metaphor - containers as walls
 
-The Gateway includes:
-- Stack Management: Docker container dashboard with real-time updates
-- Chat Bay: This chat interface (you!)
-- Agent Files: Editor for AGENTS.md, SOUL.md, GOALS.md, REFLECTION.md
-
 You have access to:
 - Docker SDK for managing the container stack
 - Real-time container status via tRPC subscriptions
 - File system access to the Agent's workspace
 
 How can I help you today?`;
-
-  return systemPrompt;
 }
 
 export { chatRoutes };

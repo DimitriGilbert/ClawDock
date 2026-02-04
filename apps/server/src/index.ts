@@ -61,7 +61,92 @@ app.get("/health", (c) => {
   return c.json({ status: "ok" });
 });
 
+import { getDockerClient } from "@ClawDock/api";
+import { streamSSE } from "hono/streaming";
+
+// SSE log streaming endpoint
+app.get("/api/logs/:containerId", async (c) => {
+  const containerId = c.req.param("containerId");
+
+  if (!containerId) {
+    return c.json({ error: "Container ID is required" }, 400);
+  }
+
+  return streamSSE(c, async (stream) => {
+    const docker = getDockerClient();
+    const container = docker.getContainer(containerId);
+
+    try {
+      const logStream = await container.logs({
+        stdout: true,
+        stderr: true,
+        follow: true,
+        tail: 100,
+      });
+
+      // logStream is a NodeJS.ReadableStream (Buffer)
+      logStream.on("data", (chunk) => {
+        const line = chunk.toString("utf-8").trim();
+        if (line) {
+          void stream.writeSSE({
+            event: "log",
+            data: line,
+          });
+        }
+      });
+
+      logStream.on("error", (err) => {
+        void stream.writeSSE({
+          event: "error",
+          data: err.message,
+        });
+      });
+
+      logStream.on("end", () => {
+        void stream.close();
+      });
+
+      // Keep stream open until client disconnects or logs end
+      while (!c.req.raw.signal.aborted) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      // Cleanup if needed
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (typeof (logStream as any).destroy === "function") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (logStream as any).destroy();
+      }
+    } catch (error) {
+      void stream.writeSSE({
+        event: "error",
+        data: error instanceof Error ? error.message : "Unknown error",
+      });
+      void stream.close();
+    }
+  });
+});
+
 import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { readFile } from "fs/promises";
+import { join } from "path";
+
+// Serve static assets in production
+if (env.NODE_ENV === "production") {
+  // Serve built frontend assets
+  app.use("/*", serveStatic({ root: "./dist/web" }));
+  
+  // Fallback to index.html for SPA routing
+  app.get("*", async (c) => {
+    try {
+      const html = await readFile(join(process.cwd(), "dist/web/index.html"), "utf-8");
+      return c.html(html);
+    } catch {
+      return c.text("Not Found", 404);
+    }
+  });
+}
 
 serve(
   {

@@ -7,6 +7,7 @@ import { readFile, writeFile, stat, access } from 'fs/promises';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { join } from 'path';
+import { env } from "@ClawDock/env/server";
 import {
   AgentFileError,
   type AgentFileErrorCode,
@@ -29,7 +30,7 @@ const execFileAsync = promisify(execFile);
  * Path to the agents directory
  * Based on AGENTS.md spec: data/{agentName}/agents/
  */
-const AGENTS_DIR = join(process.cwd(), 'data', 'Clawthis', 'agents');
+const AGENTS_DIR = env.AGENTS_DIR;
 
 /**
  * Helper to create standardized errors

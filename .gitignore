@@ -56,3 +56,5 @@ data/
 .gemini/
 .kilocode/
 .opencode/
+docs/review
+apps/server/.rolldown

@@ -5,14 +5,17 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { env } from "@ClawDock/env/server";
 import { publicProcedure, router } from "../index";
 import {
   listContainers,
   getContainer,
+  getContainerStats,
   startContainer,
   stopContainer,
   restartContainer,
   removeContainer,
+  applyStackChanges,
   subscribeToContainerEvents,
   subscribeToHealthEvents,
 } from "../lib/docker/stack";
@@ -29,6 +32,7 @@ import type {
   HealthEvent,
   ContainerInfo,
   ContainerDetails,
+  ContainerStats,
   ValidationResult,
 } from "../lib/docker/types";
 
@@ -93,7 +97,7 @@ const SubscribeOptionsSchema = z.object({
  * Gets the compose file path from environment or finds it
  */
 async function getComposeFilePath(): Promise<string | null> {
-  const envPath = process.env["COMPOSE_FILE_PATH"];
+  const envPath = env.COMPOSE_FILE_PATH;
   if (envPath) {
     return envPath;
   }
@@ -163,6 +167,31 @@ export const stackRouter = router({
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: `Failed to get container: ${message}`,
+        });
+      }
+    }),
+
+  /**
+   * Gets real-time statistics for a specific container
+   */
+  getContainerStats: publicProcedure
+    .input(ContainerIdSchema)
+    .query(async ({ input }): Promise<ContainerStats> => {
+      try {
+        return await getContainerStats(input.id);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+
+        if (message.includes("No such container")) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: `Container not found: ${input.id}`,
+          });
+        }
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to get container stats: ${message}`,
         });
       }
     }),
@@ -340,6 +369,44 @@ export const stackRouter = router({
         }
       },
     ),
+
+  /**
+   * Applies the changes from the compose file to the running stack
+   */
+  apply: publicProcedure.mutation(
+    async (): Promise<{ success: boolean; output?: string }> => {
+      try {
+        const filePath = await getComposeFilePath();
+
+        if (!filePath) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "No compose file found to apply",
+          });
+        }
+
+        const result = await applyStackChanges(filePath);
+
+        if (!result.success) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `Failed to apply stack changes: ${result.error}`,
+          });
+        }
+
+        return { success: true, output: result.output };
+      } catch (error) {
+        if (error instanceof TRPCError) {
+          throw error;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to apply stack: ${message}`,
+        });
+      }
+    },
+  ),
 
   /**
    * Validates compose file content without saving

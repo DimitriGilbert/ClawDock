@@ -558,3 +558,100 @@ export function isDockerEvent(value: unknown): value is DockerEvent {
     typeof event["Actor"]["ID"] === "string"
   );
 }
+
+// ============================================================================
+// Container Stats Types
+// ============================================================================
+
+export interface ContainerStats {
+  cpuPercent: number;
+  memoryUsage: number;      // bytes
+  memoryLimit: number;      // bytes
+  memoryPercent: number;
+  netRx: number;           // bytes
+  netTx: number;           // bytes
+  blockRead: number;        // bytes
+  blockWrite: number;       // bytes
+  pids: number;
+}
+
+export interface DockerContainerStats {
+  read: string;
+  preread: string;
+  pids_stats: {
+    current?: number;
+  };
+  blkio_stats: {
+    io_service_bytes_recursive?: Array<{
+      major: number;
+      minor: number;
+      op: string;
+      value: number;
+    }>;
+  };
+  cpu_stats: {
+    cpu_usage: {
+      total_usage: number;
+      percpu_usage?: number[];
+      usage_in_kernelmode: number;
+      usage_in_usermode: number;
+    };
+    system_cpu_usage: number;
+    online_cpus: number;
+  };
+  precpu_stats: {
+    cpu_usage: {
+      total_usage: number;
+      percpu_usage?: number[];
+    };
+    system_cpu_usage: number;
+  };
+  memory_stats: {
+    usage: number;
+    max_usage?: number;
+    stats?: {
+      active_anon?: number;
+      active_file?: number;
+      cache?: number;
+      dirty?: number;
+      hierarchical_memory_limit?: number;
+      inactive_anon?: number;
+      inactive_file?: number;
+      mapped_file?: number;
+      pgfault?: number;
+      pgmajfault?: number;
+      pgpgin?: number;
+      pgpgout?: number;
+      rss?: number;
+      rss_huge?: number;
+      total_active_anon?: number;
+      total_active_file?: number;
+      total_cache?: number;
+      total_dirty?: number;
+      total_inactive_anon?: number;
+      total_inactive_file?: number;
+      total_mapped_file?: number;
+      total_pgfault?: number;
+      total_pgmajfault?: number;
+      total_pgpgin?: number;
+      total_pgpgout?: number;
+      total_rss?: number;
+      total_rss_huge?: number;
+      total_unevictable?: number;
+      total_writeback?: number;
+      unevictable?: number;
+      writeback?: number;
+    };
+    limit: number;
+  };
+  networks?: Record<string, {
+    rx_bytes: number;
+    rx_packets: number;
+    rx_errors: number;
+    rx_dropped: number;
+    tx_bytes: number;
+    tx_packets: number;
+    tx_errors: number;
+    tx_dropped: number;
+  }>;
+}

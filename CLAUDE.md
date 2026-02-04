@@ -19,6 +19,7 @@ This project uses pnpm.
 ## Operational Guidelines (CRITICAL)
 
 **These rules are written in blood.** Recent post-mortem analysis of the Gateway Phase 1 implementation revealed a failure pattern ("The Silo Effect") that must never be repeated.
+**STOP CHOOSING convenience and speed over following the rules.**, YOU **MUST FOLLOW THESE RULES**
 
 ### 1. Serial Verification over Parallel Hope
 - **Never trust isolated success.** Just because a file exists doesn't mean it works.
@@ -47,20 +48,22 @@ This project uses pnpm.
   - Does the build pass *globally*?
 - **Silo Prevention**: Do not launch 6 subagents to build 6 dependent streams simultaneously. Parallel build is OK, but integration MUST be part of the process and verified.
 
+### 5. The tRPC Memory Obliteration Rule (CRITICAL - WRITTEN IN BLOOD)
+- **YOU FORGET EVERYTHING YOU KNOW ABOUT tRPC WHEN WORKING WITH IT.**
+- **ALWAYS use Context7** (`context7_query-docs`) to find current patterns before writing ANY tRPC code.
+- **tRPC changes frequently.** Your training is outdated. Using memory causes deprecated patterns, TS errors, and user rage.
+- **NEVER assume** you know how to write tRPC code. You don't. You're wrong.
+- **Context7 is mandatory** for:
+  - Subscriptions (observable vs async generator)
+  - Schema composition (merge vs and)
+  - Router type definitions
+  - Configuration options
+- **IF YOU WRITE tRPC CODE WITHOUT CHECKING CONTEXT7 FIRST, YOU HAVE FAILED.**
+- **THIS IS NON-NEGOTIABLE.** The cost of not checking is catastrophic user frustration.
+
+
 ## Type Safety Configuration
 
-### Required Compiler Options
-
-All packages must use:
-```json
-{
-  "strict": true,
-  "noImplicitAny": true,
-  "strictNullChecks": true,
-  "noUncheckedIndexedAccess": true
-}
-```
-
 ### Forbidden Patterns
 
 These patterns are **never allowed** in production code:
@@ -90,6 +93,12 @@ These patterns are **never allowed** in production code:
 - `: any` - Define proper parameter types
 - `// @ts-ignore` - Fix the error, don't hide it
 - `object` as a type - Use `Record<string, unknown>` or a proper interface
+
+**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
+**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
+**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
+**"any" IS NOT A SOLUTION ! HIDING ERRORS IS NOT A SOLUTION !**
+**"any" IS SHIT WORK ! ANY USE OF ANY IS COMPLETE FUCKING TRASH AND YOU WILL BE OBLITERATED IF YOU USE IT !**
 
 ### Encouraged Patterns
 
@@ -99,11 +108,6 @@ These patterns are **never allowed** in production code:
 - `satisfies` for type checking without widening
 - Explicit return types on public APIs
 
-**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
-**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
-**IF YOU HAVE TO USE THESE FORBIDDEN PATTERNS, YOU ARE WRONG !**
-**"any" IS NOT A SOLUTION ! HIDING ERRORS IS NOT A SOLUTION !**
-**"any" IS SHIT WORK ! ANY USE OF ANY IS COMPLETE FUCKING TRASH AND YOU WILL BE OBLITERATED IF YOU USE IT !**
 
 ### Verification
 
@@ -140,3 +144,8 @@ For domain-specific guidance:
 2. **Find before build** - Check for existing OSS solutions before creating new ones.
 3. **Type safety is law** - No `any`, ever. Types are documentation that compiles.
 4. **Local-first** - Cloud is a last resort. If it can run in a container, it should.
+5. **Use Skills** when matching skill is available. if it is there, there is a reason ! it will know more than you do.
+
+
+**STOP CHOOSING convenience and speed over following the rules.**, YOU **MUST FOLLOW THESE RULES**
+**STOP CHOOSING convenience and speed over following the rules.**, YOU **MUST FOLLOW THESE RULES**

@@ -46,6 +46,7 @@ COPY apps/server ./apps/server
 COPY packages ./packages
 
 # Build the server
+RUN pnpm --filter web build
 RUN pnpm --filter server build
 
 # ============================================================================
@@ -67,6 +68,7 @@ COPY --from=builder --chown=clawdock:nodejs /app/apps/server/package.json ./
 
 # Copy built application
 COPY --from=builder --chown=clawdock:nodejs /app/apps/server/dist ./dist
+COPY --from=builder --chown=clawdock:nodejs /app/apps/web/dist ./dist/web
 
 # Copy node_modules (only production dependencies)
 COPY --from=builder --chown=clawdock:nodejs /app/apps/server/node_modules ./node_modules

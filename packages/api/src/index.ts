@@ -9,3 +9,6 @@ export const router = t.router;
 export const publicProcedure = t.procedure;
 
 export { TRPCError };
+
+export { getDockerClient } from "./lib/docker/client";
+export { readAgentFile } from "./lib/agent/files";

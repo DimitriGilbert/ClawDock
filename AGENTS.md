@@ -19,6 +19,7 @@ This project uses pnpm.
 ## Operational Guidelines (CRITICAL)
 
 **These rules are written in blood.** Recent post-mortem analysis of the Gateway Phase 1 implementation revealed a failure pattern ("The Silo Effect") that must never be repeated.
+**STOP CHOOSING convenience and speed over following the rules.**, YOU **MUST FOLLOW THESE RULES**
 
 ### 1. Serial Verification over Parallel Hope
 - **Never trust isolated success.** Just because a file exists doesn't mean it works.
@@ -62,18 +63,6 @@ This project uses pnpm.
 
 
 ## Type Safety Configuration
-
-### Required Compiler Options
-
-All packages must use:
-```json
-{
-  "strict": true,
-  "noImplicitAny": true,
-  "strictNullChecks": true,
-  "noUncheckedIndexedAccess": true
-}
-```
 
 ### Forbidden Patterns
 
@@ -155,3 +144,8 @@ For domain-specific guidance:
 2. **Find before build** - Check for existing OSS solutions before creating new ones.
 3. **Type safety is law** - No `any`, ever. Types are documentation that compiles.
 4. **Local-first** - Cloud is a last resort. If it can run in a container, it should.
+5. **Use Skills** when matching skill is available. if it is there, there is a reason ! it will know more than you do.
+
+
+**STOP CHOOSING convenience and speed over following the rules.**, YOU **MUST FOLLOW THESE RULES**
+**STOP CHOOSING convenience and speed over following the rules.**, YOU **MUST FOLLOW THESE RULES**

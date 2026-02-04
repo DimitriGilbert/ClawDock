@@ -3,6 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { FileText, Save, History, RotateCcw, Check, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { trpc } from "@/utils/trpc";
 import { Button } from "@/components/ui/button";
@@ -20,18 +22,21 @@ export const Route = createFileRoute("/files")({
   component: FilesPage,
 });
 
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+
 // Agent file types
 const AGENT_FILES = [
-  { id: "agents", label: "AGENTS.md", description: "Agent Operations" },
-  { id: "soul", label: "SOUL.md", description: "Core Identity" },
-  { id: "goals", label: "GOALS.md", description: "Current Goals" },
-  { id: "reflection", label: "REFLECTION.md", description: "Self-Reflection" },
+  { id: "AGENTS.md", label: "AGENTS.md", description: "Agent Operations" },
+  { id: "SOUL.md", label: "SOUL.md", description: "Core Identity" },
+  { id: "GOALS.md", label: "GOALS.md", description: "Current Goals" },
+  { id: "REFLECTION.md", label: "REFLECTION.md", description: "Self-Reflection" },
 ] as const;
 
 type AgentFileId = (typeof AGENT_FILES)[number]["id"];
 
 function FilesPage(): React.ReactElement {
-  const [selectedFile, setSelectedFile] = useState<AgentFileId>("agents");
+  const [selectedFile, setSelectedFile] = useState<AgentFileId>("AGENTS.md");
   const [editedContent, setEditedContent] = useState<string>("");
   const [hasChanges, setHasChanges] = useState<boolean>(false);
   const queryClient = useQueryClient();
@@ -192,6 +197,7 @@ function FilesPage(): React.ReactElement {
             <div className="space-y-1">
               {AGENT_FILES.map((file) => (
                 <button
+                  type="button"
                   key={file.id}
                   onClick={() => handleSelectFile(file.id)}
                   className={cn(
@@ -230,14 +236,14 @@ function FilesPage(): React.ReactElement {
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="flex-1 p-0">
+          <CardContent className="flex-1 p-0 relative">
             <textarea
               value={currentContent}
               onChange={(e) => handleContentChange(e.target.value)}
               disabled={!isEditable || fileQuery.isLoading}
               className={cn(
-                "w-full h-full resize-none border-0 bg-background p-4 text-xs",
-                "font-mono leading-relaxed focus:outline-none focus:ring-0",
+                "w-full h-full resize-none border-0 bg-transparent p-4 text-xs font-mono absolute inset-0 z-10 text-transparent caret-foreground",
+                "leading-relaxed focus:outline-none focus:ring-0",
                 !isEditable && "opacity-50 cursor-not-allowed"
               )}
               placeholder={
@@ -245,6 +251,22 @@ function FilesPage(): React.ReactElement {
               }
               spellCheck={false}
             />
+            <div className="absolute inset-0 p-4 pointer-events-none overflow-hidden">
+              <SyntaxHighlighter
+                language="markdown"
+                style={vscDarkPlus}
+                customStyle={{
+                  margin: 0,
+                  padding: 0,
+                  background: "transparent",
+                  fontSize: "0.75rem",
+                  lineHeight: "1.625", // Matched visually with leading-relaxed
+                }}
+                wrapLongLines={true}
+              >
+                {currentContent}
+              </SyntaxHighlighter>
+            </div>
           </CardContent>
         </Card>
 
@@ -260,11 +282,14 @@ function FilesPage(): React.ReactElement {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-1 overflow-auto">
-            <div
-              className="text-xs font-mono whitespace-pre-wrap break-words text-muted-foreground"
-              style={{ fontFamily: "monospace" }}
-            >
-              {currentContent || "Preview will appear here..."}
+            <div className="prose prose-xs dark:prose-invert max-w-none p-4">
+              {currentContent ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {currentContent}
+                </ReactMarkdown>
+              ) : (
+                <p className="text-muted-foreground">Preview will appear here...</p>
+              )}
             </div>
           </CardContent>
         </Card>

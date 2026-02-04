@@ -5,9 +5,12 @@
  */
 
 import { getDockerClient } from "./client";
+import { exec } from "child_process";
+import { promisify } from "util";
 import type {
   ContainerInfo,
   ContainerDetails,
+  ContainerStats,
   ContainerEvent,
   HealthEvent,
   HealthStatus,
@@ -16,8 +19,11 @@ import type {
   ContainerPort,
   MountInfo,
   DockerEvent,
+  DockerContainerStats,
 } from "./types";
 import { isDockerEvent } from "./types";
+
+const execAsync = promisify(exec);
 
 // ============================================================================
 // Container List Operations
@@ -186,6 +192,83 @@ export async function getContainer(id: string): Promise<ContainerDetails> {
   const info = await container.inspect();
 
   return mapContainerInspectToContainerDetails(info, id);
+}
+
+/**
+ * Gets real-time statistics for a container
+ * @param id - Container ID or name
+ * @returns Container statistics
+ */
+export async function getContainerStats(id: string): Promise<ContainerStats> {
+  const docker = getDockerClient();
+  const container = docker.getContainer(id);
+
+  // Cast to DockerContainerStats to avoid TS errors with dockerode types and ensure type safety
+  const stats = (await container.stats({ stream: false })) as unknown as DockerContainerStats;
+
+  // Calculate CPU percentage
+  // Docker calculates CPU % as:
+  // (cpuDelta / systemDelta) * number_of_cpus * 100.0
+  const cpuDelta =
+    stats.cpu_stats.cpu_usage.total_usage -
+    stats.precpu_stats.cpu_usage.total_usage;
+  const systemDelta =
+    stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
+  const onlineCpus =
+    stats.cpu_stats.online_cpus ||
+    stats.cpu_stats.cpu_usage.percpu_usage?.length ||
+    1;
+
+  let cpuPercent = 0.0;
+  if (systemDelta > 0.0 && cpuDelta > 0.0) {
+    cpuPercent = (cpuDelta / systemDelta) * onlineCpus * 100.0;
+  }
+
+  // Calculate memory percentage
+  const memoryUsage = stats.memory_stats.usage || 0;
+  const memoryLimit = stats.memory_stats.limit || 0;
+  const memoryPercent =
+    memoryLimit > 0 ? (memoryUsage / memoryLimit) * 100 : 0;
+
+  // Network I/O
+  // Sum up rx_bytes and tx_bytes from all networks
+  const netRx = stats.networks
+    ? Object.values(stats.networks).reduce(
+        (sum: number, n) => sum + (n.rx_bytes || 0),
+        0,
+      )
+    : 0;
+  const netTx = stats.networks
+    ? Object.values(stats.networks).reduce(
+        (sum: number, n) => sum + (n.tx_bytes || 0),
+        0,
+      )
+    : 0;
+
+  // Block I/O
+  // Sum up read and write operations
+  const blockRead = stats.blkio_stats
+    ? stats.blkio_stats.io_service_bytes_recursive
+        ?.filter((b) => b.op === "read")
+        .reduce((sum: number, b) => sum + b.value, 0) || 0
+    : 0;
+  const blockWrite = stats.blkio_stats
+    ? stats.blkio_stats.io_service_bytes_recursive
+        ?.filter((b) => b.op === "write")
+        .reduce((sum: number, b) => sum + b.value, 0) || 0
+    : 0;
+
+  return {
+    cpuPercent: Math.round(cpuPercent * 100) / 100,
+    memoryUsage,
+    memoryLimit,
+    memoryPercent: Math.round(memoryPercent * 100) / 100,
+    netRx,
+    netTx,
+    blockRead,
+    blockWrite,
+    pids: stats.pids_stats.current || 0,
+  };
 }
 
 /**
@@ -692,6 +775,25 @@ export async function removeContainer(
 
     await container.remove();
     return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Applies changes from a compose file (runs docker compose up -d)
+ * @param filePath - Path to the compose file
+ * @returns Operation result
+ */
+export async function applyStackChanges(
+  filePath: string,
+): Promise<{ success: boolean; error?: string; output?: string }> {
+  try {
+    const { stdout, stderr } = await execAsync(
+      `docker compose -f "${filePath}" up -d --remove-orphans`,
+    );
+    return { success: true, output: stdout + stderr };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { success: false, error: message };

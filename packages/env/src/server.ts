@@ -9,6 +9,8 @@ export const env = createEnv({
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
     OPENCODE_URL: z.string().url().default("http://opencode:4096"),
     OPENCODE_PASSWORD: z.string().optional(),
+    AGENTS_DIR: z.string().default("./agents"),
+    COMPOSE_FILE_PATH: z.string().default("docker-compose.yml"),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
