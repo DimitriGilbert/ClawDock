@@ -1,0 +1,194 @@
+# clawdock Castle - Phase 1 Stack
+#
+# The Keep: Core infrastructure for clawdock Agent's Castle
+#
+# Services:
+#   - traefik: Reverse proxy (routes traffic)
+#   - postgres: Shared database (with pgvector)
+#   - opencode: AI inference engine (OpenCode Server)
+#   - gateway: Control plane + Chat Bay
+#
+# Usage:
+#   docker compose up -d
+#
+# Access:
+#   - Gateway: http://gateway.localhost
+#   - Traefik Dashboard: http://traefik.localhost:8080
+#
+
+name: clawdock
+
+services:
+  # ==========================================================================
+  # TRAEFIK - Reverse Proxy
+  # ==========================================================================
+  # Routes external traffic to internal services. Separate from Gateway for
+  # resilience - if Gateway crashes, other services remain accessible.
+  #
+  traefik:
+    image: traefik:v3.0
+    container_name: clawdock-traefik
+    command:
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--log.level=INFO"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - clawdock-network
+    labels:
+      - "com.clawdock.protected=true"
+      - "com.clawdock.core=true"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ==========================================================================
+  # POSTGRES - Shared Database
+  # ==========================================================================
+  # Central database for all services. Uses pgvector extension for future
+  # Memory Store semantic search.
+  #
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: clawdock-postgres
+    environment:
+      POSTGRES_USER: clawdock
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-clawdock_dev}
+      POSTGRES_DB: clawdock
+    volumes:
+      - clawdock-postgres-data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - clawdock-network
+    labels:
+      - "com.clawdock.protected=true"
+      - "com.clawdock.core=true"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clawdock -d clawdock"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================================================
+  # OPENCODE SERVER - AI Inference Engine
+  # ==========================================================================
+  # Sandboxed environment for AI-driven code execution. Exposes OpenAPI
+  # at /doc. Gateway communicates with this for Chat Bay.
+  #
+  opencode:
+    image: ghcr.io/anomalyco/opencode:latest
+    container_name: clawdock-opencode
+    command: serve --port 4096 --hostname 0.0.0.0
+    environment:
+      - OPENCODE_SERVER_PASSWORD=${OPENCODE_PASSWORD:-opencode_dev}
+      # Add your AI provider keys here
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    volumes:
+      # Agent's workspace - where code gets executed
+      - ./workspace:/workspace
+      # Agent identity files - read only for OpenCode
+      - ./agents:/agents:ro
+    networks:
+      - clawdock-network
+    labels:
+      - "com.clawdock.protected=true"
+      - "com.clawdock.core=true"
+      - "traefik.enable=true"
+      - "traefik.http.routers.opencode.rule=Host(`opencode.localhost`)"
+      - "traefik.http.services.opencode.loadbalancer.server.port=4096"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================================================
+  # GATEWAY - Control Plane + Chat Bay
+  # ==========================================================================
+  # The admin interface for the Agent. Manages Docker stack, provides Chat Bay,
+  # and allows editing Agent files.
+  #
+  # NOTE: Docker management uses dockerode via mounted socket - no CLI needed.
+  # Compose file manipulation done via YAML parsing, not docker-compose CLI.
+  #
+  gateway:
+    build:
+      context: ./workspace/apps/gateway
+      dockerfile: Dockerfile
+    container_name: clawdock-gateway
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://clawdock:${DB_PASSWORD:-clawdock_dev}@postgres:5432/clawdock
+      - OPENCODE_URL=http://opencode:4096
+      - OPENCODE_PASSWORD=${OPENCODE_PASSWORD:-opencode_dev}
+      - SNAPSHOT_MASTER_KEY=${SNAPSHOT_MASTER_KEY:-}
+      # Docker socket path inside container
+      - DOCKER_SOCKET=/var/run/docker.sock
+      # Compose file path for self-management
+      - COMPOSE_FILE_PATH=/app/docker-compose.yml
+      # Agent name (for container prefix filtering)
+      - AGENT_NAME=clawdock
+    volumes:
+      # Docker socket for stack management via dockerode API
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Agent files (read-write for editing)
+      - ./agents:/app/agents
+      # Configuration files
+      - ./config:/app/config
+      # Workspace access
+      - ./workspace:/app/workspace
+      # Compose file (for reading/writing - dockerode restarts services)
+      - ./docker-compose.yml:/app/docker-compose.yml
+      # Snapshot storage
+      - ./snapshots:/app/snapshots
+    networks:
+      - clawdock-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      opencode:
+        condition: service_started
+    labels:
+      - "com.clawdock.protected=true"
+      - "com.clawdock.core=true"
+      - "traefik.enable=true"
+      - "traefik.http.routers.gateway.rule=Host(`gateway.localhost`)"
+      - "traefik.http.routers.gateway.entrypoints=web"
+      - "traefik.http.services.gateway.loadbalancer.server.port=3000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# ==========================================================================
+# NETWORKS
+# ==========================================================================
+networks:
+  clawdock-network:
+    driver: bridge
+    name: clawdock-network
+
+# ==========================================================================
+# VOLUMES
+# ==========================================================================
+volumes:
+  clawdock-postgres-data:
+    name: clawdock-postgres-data

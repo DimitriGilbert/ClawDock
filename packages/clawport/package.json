@@ -1,0 +1,28 @@
+{
+  "name": "@ClawDock/clawport",
+  "version": "0.1.0",
+  "description": "CLI for managing ClawDock agents",
+  "type": "module",
+  "bin": {
+    "clawport": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "check-types": "tsc --noEmit",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.2.0",
+    "chalk": "^5.6.2",
+    "commander": "^14.0.3",
+    "dotenv": "catalog:",
+    "fs-extra": "^11.3.3",
+    "yaml": "^2.8.2"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}
