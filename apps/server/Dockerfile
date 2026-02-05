@@ -25,7 +25,7 @@ RUN pnpm install --frozen-lockfile --prod=false
 # ============================================================================
 # Stage 2: Builder
 # ============================================================================
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@10.10.0 --activate
@@ -59,7 +59,7 @@ RUN apk add --no-cache dumb-init
 
 # Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 clawdock
+  adduser --system --uid 1001 clawdock
 
 WORKDIR /app
 

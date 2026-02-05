@@ -132,18 +132,25 @@ export const stackRouter = router({
   /**
    * Lists all containers (running and stopped)
    */
-  listContainers: publicProcedure.query(async (): Promise<ContainerInfo[]> => {
-    try {
-      const containers = await listContainers({ all: true });
-      return containers.map(formatContainerInfo);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
-        message: `Failed to list containers: ${message}`,
-      });
-    }
-  }),
+  listContainers: publicProcedure
+    .input(
+      z.object({
+        showAll: z.boolean().optional().default(false),
+      }).optional(),
+    )
+    .query(async ({ input }): Promise<ContainerInfo[]> => {
+      const showAll = input?.showAll ?? false;
+      try {
+        const containers = await listContainers({ all: true, showAll });
+        return containers.map(formatContainerInfo);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Failed to list containers: ${message}`,
+        });
+      }
+    }),
 
   /**
    * Gets detailed information about a specific container

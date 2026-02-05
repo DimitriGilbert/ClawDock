@@ -11,6 +11,7 @@ export const env = createEnv({
     OPENCODE_PASSWORD: z.string().optional(),
     AGENTS_DIR: z.string().default("./agents"),
     COMPOSE_FILE_PATH: z.string().default("docker-compose.yml"),
+    COMPOSE_PROJECT_NAME: z.string().optional(),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

@@ -7,6 +7,7 @@
 import { getDockerClient } from "./client";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { env } from "@ClawDock/env/server";
 import type {
   ContainerInfo,
   ContainerDetails,
@@ -37,11 +38,25 @@ const execAsync = promisify(exec);
 export async function listContainers(opts?: {
   all?: boolean;
   filters?: Record<string, string[]>;
+  showAll?: boolean;
 }): Promise<ContainerInfo[]> {
   const docker = getDockerClient();
+
+  const filters: Record<string, string[]> = {};
+
+  if (!opts?.showAll && env.COMPOSE_PROJECT_NAME) {
+    filters["label"] = [`com.docker.compose.project=${env.COMPOSE_PROJECT_NAME}`];
+  }
+
+  if (opts?.filters) {
+    Object.entries(opts.filters).forEach(([key, values]) => {
+      filters[key] = values;
+    });
+  }
+
   const containers = await docker.listContainers({
     all: opts?.all ?? true,
-    filters: opts?.filters,
+    filters: Object.keys(filters).length > 0 ? filters : undefined,
   });
 
   return containers.map(mapDockerodeContainerToContainerInfo);

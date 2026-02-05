@@ -34,6 +34,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -43,6 +45,7 @@ export const Route = createFileRoute("/")({
 function DashboardPage(): React.ReactElement {
   const [inspectContainerId, setInspectContainerId] = useState<string | null>(null);
   const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [showAllContainers, setShowAllContainers] = useState(false);
   const healthCheck = useQuery(trpc.healthCheck.queryOptions());
   
   // Real-time Subscriptions
@@ -79,7 +82,7 @@ function DashboardPage(): React.ReactElement {
   }, []);
 
   const { data: containers, isLoading } = useQuery(
-    trpc.stack.listContainers.queryOptions()
+    trpc.stack.listContainers.queryOptions({ showAll: showAllContainers })
   );
 
   return (
@@ -91,15 +94,27 @@ function DashboardPage(): React.ReactElement {
           <h2 className="text-sm font-semibold text-foreground">Stack Overview</h2>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setIsComposeOpen(true)}
             className="h-8"
           >
             <Edit className="size-3.5 mr-2" />
             Edit Stack
           </Button>
+
+          <div className="flex items-center gap-2 px-2 py-1 rounded-md border bg-muted/50">
+            <Switch
+              id="show-all"
+              checked={showAllContainers}
+              onCheckedChange={setShowAllContainers}
+              size="sm"
+            />
+            <Label htmlFor="show-all" className="text-xs cursor-pointer">
+              Show All
+            </Label>
+          </div>
 
           <div
             className={cn(
