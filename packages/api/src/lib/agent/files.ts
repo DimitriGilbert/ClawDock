@@ -22,6 +22,7 @@ import {
   isAgentFileName,
   isEditable,
 } from './types';
+import { createSnapshot, getSettings } from '../snapshot/service';
 
 // Promisify execFile for async/await usage
 const execFileAsync = promisify(execFile);
@@ -146,6 +147,18 @@ export async function updateAgentFile(
       'FILE_NOT_FOUND',
       filename,
     );
+  }
+
+  // Check if pre-change snapshots are enabled
+  const settings = await getSettings();
+
+  if (settings.preChangeAgentFiles) {
+    await createSnapshot({
+      type: 'pre-change',
+      trigger: 'agent-file-edit',
+      comment: `Before editing ${filename}`,
+      includeDatabase: false, // Files only, no need for DB
+    });
   }
 
   try {

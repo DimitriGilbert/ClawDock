@@ -1,6 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
-import { Layers, MessageSquare, FolderOpen } from "lucide-react";
+import { Camera, Layers, MessageSquare, FolderOpen } from "lucide-react";
 
 export interface NavItem {
   readonly to: string;
@@ -23,6 +23,11 @@ const NAV_ITEMS: readonly NavItem[] = [
     to: "/files",
     label: "Agent Files",
     icon: FolderOpen,
+  },
+  {
+    to: "/snapshots",
+    label: "Snapshots",
+    icon: Camera,
   },
 ] as const;
 

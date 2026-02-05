@@ -12,3 +12,13 @@ export { TRPCError };
 
 export { getDockerClient } from "./lib/docker/client";
 export { readAgentFile } from "./lib/agent/files";
+
+// Snapshot system types
+export type {
+  Snapshot,
+  SnapshotSettings,
+  DiffResult,
+  SnapshotError,
+  CreateSnapshotOptions,
+  RestoreOptions,
+} from "./lib/snapshot/types";

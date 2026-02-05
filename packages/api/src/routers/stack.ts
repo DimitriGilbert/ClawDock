@@ -27,6 +27,7 @@ import {
   validateComposeContent,
   findComposeFile,
 } from "../lib/docker/editor";
+import { createSnapshot, getSettings } from "../lib/snapshot/service";
 import type {
   ContainerEvent,
   HealthEvent,
@@ -353,6 +354,17 @@ export const stackRouter = router({
             throw new TRPCError({
               code: "BAD_REQUEST",
               message: `Validation failed: ${validation.errors.map((e) => `${e.path}: ${e.message}`).join(", ")}`,
+            });
+          }
+
+          // Check if pre-change snapshots are enabled and create snapshot before updating
+          const settings = await getSettings();
+          if (settings.preChangeCompose) {
+            await createSnapshot({
+              type: 'pre-change',
+              trigger: 'compose-update',
+              comment: input.comment || 'Before compose update',
+              includeDatabase: true,
             });
           }
 

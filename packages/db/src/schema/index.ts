@@ -7,6 +7,7 @@ import {
   uuid,
   integer,
   bigint,
+  boolean,
   index,
   uniqueIndex,
   primaryKey,
@@ -124,6 +125,25 @@ export const snapshots = pgTable(
   (table) => ({
     createdAtIdx: index('idx_snapshots_created').on(table.createdAt),
     typeIdx: index('idx_snapshots_type').on(table.snapshotType),
+  })
+);
+
+/**
+ * Snapshot system configuration settings
+ * Controls auto-snapshot behavior and retention policies
+ */
+export const snapshotSettings = pgTable(
+  'snapshot_settings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    maxSnapshots: integer('max_snapshots').default(30).notNull(),
+    preChangeCompose: boolean('pre_change_compose').default(true).notNull(),
+    preChangeAgentFiles: boolean('pre_change_agent_files').default(true).notNull(),
+    includeDatabase: boolean('include_database').default(true).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    updatedAtIdx: index('idx_snapshot_settings_updated').on(table.updatedAt),
   })
 );
 
@@ -292,6 +312,8 @@ export type ComposeHistory = typeof composeHistory.$inferSelect;
 export type NewComposeHistory = typeof composeHistory.$inferInsert;
 export type Snapshot = typeof snapshots.$inferSelect;
 export type NewSnapshot = typeof snapshots.$inferInsert;
+export type SnapshotSettings = typeof snapshotSettings.$inferSelect;
+export type NewSnapshotSettings = typeof snapshotSettings.$inferInsert;
 export type Memory = typeof memories.$inferSelect;
 export type NewMemory = typeof memories.$inferInsert;
 export type Entity = typeof entities.$inferSelect;

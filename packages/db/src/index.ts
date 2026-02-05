@@ -18,6 +18,7 @@ export {
   chatMessages,
   composeHistory,
   snapshots,
+  snapshotSettings,
   // Phase 2 tables
   memories,
   entities,
@@ -33,6 +34,8 @@ export {
   type NewComposeHistory,
   type Snapshot,
   type NewSnapshot,
+  type SnapshotSettings,
+  type NewSnapshotSettings,
   type Memory,
   type NewMemory,
   type Entity,

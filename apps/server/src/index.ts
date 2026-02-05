@@ -133,12 +133,13 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { readFile } from "fs/promises";
 import { join } from "path";
+import { initializeSnapshotSystem } from "@ClawDock/api/lib/snapshot/setup";
 
 // Serve static assets in production
 if (env.NODE_ENV === "production") {
   // Serve built frontend assets
   app.use("/*", serveStatic({ root: "./dist/web" }));
-  
+
   // Fallback to index.html for SPA routing
   app.get("*", async (c) => {
     try {
@@ -148,6 +149,15 @@ if (env.NODE_ENV === "production") {
       return c.text("Not Found", 404);
     }
   });
+}
+
+// Initialize snapshot system before starting the server
+try {
+  await initializeSnapshotSystem();
+  console.log("Snapshot system initialized successfully");
+} catch (error) {
+  console.error("Failed to initialize snapshot system:", error);
+  // Continue starting the server even if snapshot initialization fails
 }
 
 serve(
