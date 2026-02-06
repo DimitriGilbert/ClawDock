@@ -3,36 +3,12 @@ import { join } from 'node:path';
 import { parse } from 'yaml';
 import chalk from 'chalk';
 import { input } from '@inquirer/prompts';
-import { DATA_DIR } from './utils.js';
+import { DATA_DIR, isComposeFile } from './utils.js';
 import { slugify } from './create.js';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-}
-
-// Interface for Docker Compose file structure
-interface ComposeFile {
-  services?: Record<string, {
-    ports?: (string | number)[];
-    [key: string]: unknown;
-  }>;
-  [key: string]: unknown;
-}
-
-// Type guard for ComposeFile
-function isComposeFile(obj: unknown): obj is ComposeFile {
-  if (typeof obj !== 'object' || obj === null) {
-    return false;
-  }
-  const maybeCompose = obj as Record<string, unknown>;
-  // services is optional, but if present must be an object
-  if ('services' in maybeCompose && maybeCompose.services !== undefined) {
-    if (typeof maybeCompose.services !== 'object' || maybeCompose.services === null) {
-      return false;
-    }
-  }
-  return true;
 }
 
 interface ParseResult {
@@ -111,6 +87,10 @@ export async function chatAgent(name: string) {
 
   // Find Port
   const composePath = join(agentDir, 'docker-compose.yml');
+  if (!await fs.pathExists(composePath)) {
+    console.error(chalk.red(`No docker-compose.yml found for agent "${slug}".`));
+    return;
+  }
   const content = await fs.readFile(composePath, 'utf8');
   const parsedCompose: unknown = parse(content);
   

@@ -163,7 +163,7 @@ try {
 
 // Initialize heartbeat daemon in production mode
 const heartbeatEnabled =
-  env.NODE_ENV === "production" && process.env.HEARTBEAT_ENABLED !== "false";
+  env.NODE_ENV === "production" && env.HEARTBEAT_ENABLED !== "false";
 
 if (heartbeatEnabled) {
   try {

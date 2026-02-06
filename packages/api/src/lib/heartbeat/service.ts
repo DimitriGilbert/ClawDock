@@ -90,15 +90,19 @@ export class HeartbeatDaemon {
       );
     }
 
+    const intervalMs = parseInterval(this.config.interval);
+
+    // Perform initial poll immediately (before marking as running)
+    try {
+      await this.poll();
+    } catch (error) {
+      console.error('[Heartbeat] Initial poll failed, but continuing:', error);
+    }
+
     this.status.running = true;
     this.status.startedAt = new Date();
     this.status.totalPolls = 0;
     this.status.results = [];
-
-    const intervalMs = parseInterval(this.config.interval);
-
-    // Perform initial poll immediately
-    await this.poll();
 
     // Schedule recurring polls
     this.intervalHandle = setInterval(() => {

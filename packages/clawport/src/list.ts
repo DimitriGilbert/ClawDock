@@ -4,46 +4,9 @@ import { parse } from 'yaml';
 import chalk from 'chalk';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import { DATA_DIR } from './utils.js';
+import { DATA_DIR, isComposeFile, extractHostPort } from './utils.js';
 
 const execAsync = promisify(exec);
-
-// Interface for Docker Compose file structure
-interface ComposeFile {
-  services?: Record<string, {
-    ports?: (string | number)[];
-    [key: string]: unknown;
-  }>;
-  [key: string]: unknown;
-}
-
-// Type guard for ComposeFile
-function isComposeFile(obj: unknown): obj is ComposeFile {
-  if (typeof obj !== 'object' || obj === null) {
-    return false;
-  }
-  const maybeCompose = obj as Record<string, unknown>;
-  if ('services' in maybeCompose && maybeCompose.services !== undefined) {
-    if (typeof maybeCompose.services !== 'object' || maybeCompose.services === null) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
- * Extract host port from a Docker port mapping string.
- * Handles both two-part (8000:80) and three-part (0.0.0.0:8000:80) mappings.
- */
-function extractHostPort(mapping: string): string {
-  const parts = mapping.split(':');
-  if (parts.length >= 2) {
-    // For "8000:80" -> parts[0] = "8000"
-    // For "0.0.0.0:8000:80" -> parts[1] = "8000"
-    return parts[parts.length - 2] || 'Unknown';
-  }
-  return 'Unknown';
-}
 
 interface AgentInfo {
   name: string;

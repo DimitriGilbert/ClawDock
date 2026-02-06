@@ -11,7 +11,9 @@ import {
   BASE_PORT, 
   PORTS_PER_AGENT, 
   PORT_OFFSETS,
-  type AgentPorts 
+  type AgentPorts,
+  isComposeFile,
+  extractHostPort
 } from './utils.js';
 
 const execAsync = promisify(exec);
@@ -31,48 +33,7 @@ export function slugify(text: string): string {
     .replace(/-+$/, '');      // Trim - from end of text
 }
 
-// Interface for Docker Compose file structure
-interface ComposeFile {
-  services?: Record<string, {
-    ports?: (string | number)[];
-    [key: string]: unknown;
-  }>;
-  [key: string]: unknown;
-}
 
-// Type guard for ComposeFile
-function isComposeFile(obj: unknown): obj is ComposeFile {
-  if (typeof obj !== 'object' || obj === null) {
-    return false;
-  }
-  const maybeCompose = obj as Record<string, unknown>;
-  if ('services' in maybeCompose && maybeCompose.services !== undefined) {
-    if (typeof maybeCompose.services !== 'object' || maybeCompose.services === null) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
- * Extract host port from a Docker port mapping string.
- * Handles both two-part (8000:80) and three-part (0.0.0.0:8000:80) mappings.
- */
-function extractHostPort(mapping: string): number | null {
-  const parts = mapping.split(':');
-  if (parts.length >= 2) {
-    // For "8000:80" -> parts[0] = "8000"
-    // For "0.0.0.0:8000:80" -> parts[1] = "8000"
-    const portStr = parts[parts.length - 2];
-    if (portStr) {
-      const port = parseInt(portStr, 10);
-      if (!isNaN(port)) {
-        return port;
-      }
-    }
-  }
-  return null;
-}
 
 async function getUsedPorts(): Promise<Set<number>> {
   const usedPorts = new Set<number>();
@@ -104,9 +65,12 @@ async function getUsedPorts(): Promise<Set<number>> {
             const traefikPorts = services[serviceName]?.ports || [];
             for (const portMapping of traefikPorts) {
               if (typeof portMapping === 'string') {
-                const hostPort = extractHostPort(portMapping);
-                if (hostPort !== null) {
-                  usedPorts.add(hostPort);
+                const hostPortStr = extractHostPort(portMapping);
+                if (hostPortStr) {
+                  const hostPort = parseInt(hostPortStr, 10);
+                  if (!isNaN(hostPort)) {
+                    usedPorts.add(hostPort);
+                  }
                 }
               } else if (typeof portMapping === 'number') {
                 usedPorts.add(portMapping);
@@ -207,8 +171,11 @@ export async function createAgent(name: string) {
     .replace(/^name: clawdock$/m, `name: ${slug}`);
 
   // YAML Transformations for Ports and Build Context
-  const composeYaml = parse(composeContent) as Record<string, unknown>;
-  const services = composeYaml.services as Record<string, Record<string, unknown>> | undefined;
+  const composeYaml: unknown = parse(composeContent);
+  if (!isComposeFile(composeYaml)) {
+    throw new Error(`Template at ${TEMPLATE_PATH} is not a valid Compose file`);
+  }
+  const services = composeYaml.services;
   
   // Update Traefik Ports
   const traefikService = services?.[`${slug}-traefik`];

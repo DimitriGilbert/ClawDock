@@ -14,8 +14,8 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { publicProcedure, router } from "../index";
 import type { Memory, Entity, MemoryEntity } from "@ClawDock/db";
-import { MemoryError } from "../lib/memory/types";
-import type { MemoryType, MemorySearchResult } from "../lib/memory/types";
+import { MemoryError, type MemoryErrorCode } from "../lib/memory/types";
+import type { MemorySearchResult } from "../lib/memory/types";
 import {
   createMemory,
   getMemoryById,
@@ -40,14 +40,14 @@ import {
  * Maps MemoryError codes to TRPCError codes
  */
 function mapMemoryErrorToTRPC(error: MemoryError): TRPCError {
-  const codeMap: Record<string, TRPCError["code"]> = {
+  const codeMap = {
     NOT_FOUND: "NOT_FOUND",
     VALIDATION_ERROR: "BAD_REQUEST",
     LINK_EXISTS: "BAD_REQUEST",
     LINK_NOT_FOUND: "NOT_FOUND",
     DB_ERROR: "INTERNAL_SERVER_ERROR",
     EMBEDDING_ERROR: "INTERNAL_SERVER_ERROR",
-  };
+  } satisfies Record<MemoryErrorCode, TRPCError["code"]>;
 
   return new TRPCError({
     code: codeMap[error.code] ?? "INTERNAL_SERVER_ERROR",
@@ -99,6 +99,7 @@ const SearchMemoriesSchema = z.object({
 const ListEntitiesSchema = z.object({
   type: z.string().optional(),
   limit: z.number().min(1).max(100).optional().default(50),
+  offset: z.number().min(0).optional().default(0),
 });
 
 const CreateEntitySchema = z.object({
@@ -138,7 +139,7 @@ export const memoryRouter = router({
     .query(async ({ input }): Promise<Memory[]> => {
       try {
         return await listMemories({
-          type: input.type as MemoryType | undefined,
+          type: input.type,
           limit: input.limit,
           offset: input.offset,
         });
@@ -205,7 +206,7 @@ export const memoryRouter = router({
       try {
         return await createMemory(
           input.content,
-          input.memoryType as MemoryType,
+          input.memoryType,
           input.source,
           input.metadata
         );
@@ -238,7 +239,7 @@ export const memoryRouter = router({
         const { id, ...updates } = input;
         return await updateMemory(id, {
           content: updates.content,
-          memoryType: updates.memoryType as MemoryType | undefined,
+          memoryType: updates.memoryType,
           source: updates.source,
           metadata: updates.metadata,
         });

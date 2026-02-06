@@ -83,6 +83,7 @@ export type MemoryErrorCode =
   | 'NOT_FOUND'
   | 'VALIDATION_ERROR'
   | 'LINK_EXISTS'
+  | 'LINK_NOT_FOUND'
   | 'DB_ERROR'
   | 'EMBEDDING_ERROR';
 

@@ -73,6 +73,9 @@ export function parseInterval(interval: string): number {
   }
 
   const value = parseInt(valueStr, 10);
+  if (value <= 0) {
+    return 60000; // Enforce minimum 1 minute
+  }
 
   switch (unit) {
     case 's':
@@ -199,7 +202,7 @@ export async function loadConfig(): Promise<HeartbeatConfig> {
   const configPath = `${env.AGENT_DATA_PATH}/config/heartbeat.yml`;
 
   if (!existsSync(configPath)) {
-    return DEFAULT_CONFIG;
+    return structuredClone(DEFAULT_CONFIG);
   }
 
   try {
@@ -208,12 +211,12 @@ export async function loadConfig(): Promise<HeartbeatConfig> {
 
     // Type guard to validate parsed content
     if (typeof parsed !== 'object' || parsed === null) {
-      return DEFAULT_CONFIG;
+      return structuredClone(DEFAULT_CONFIG);
     }
 
     return transformConfig(parsed as YamlConfig);
   } catch {
-    return DEFAULT_CONFIG;
+    return structuredClone(DEFAULT_CONFIG);
   }
 }
 
@@ -221,5 +224,5 @@ export async function loadConfig(): Promise<HeartbeatConfig> {
  * Get the default configuration (useful for testing)
  */
 export function getDefaultConfig(): HeartbeatConfig {
-  return { ...DEFAULT_CONFIG };
+  return structuredClone(DEFAULT_CONFIG);
 }

@@ -82,7 +82,7 @@ const UpdateTaskSchema = z.object({
   status: TaskStatusSchema.optional(),
   priority: z.number().min(0).max(100).optional(),
   source: z.string().nullable().optional(),
-  dueAt: z.date().nullable().optional(),
+  dueAt: z.coerce.date().nullable().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 

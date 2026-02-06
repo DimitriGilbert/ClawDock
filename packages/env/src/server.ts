@@ -14,6 +14,7 @@ export const env = createEnv({
     COMPOSE_PROJECT_NAME: z.string().optional(),
     AGENT_DATA_PATH: z.string().default("./data/Clawthis"),
     SNAPSHOT_RETENTION_COUNT: z.coerce.number().int().min(1).default(30),
+    HEARTBEAT_ENABLED: z.enum(["true", "false"]).default("true"),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

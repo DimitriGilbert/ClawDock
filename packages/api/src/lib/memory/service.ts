@@ -62,9 +62,10 @@ type QueryResult = z.infer<typeof queryResultSchema>;
  */
 async function generateEmbedding(content: string): Promise<number[]> {
   // TODO: Replace with actual OpenAI/embedding provider call
-  // Returns 1536-dimension placeholder for ada-002 compatibility
+  // Returns 1536-dimension placeholder with small random noise for ada-002 compatibility
+  // Non-zero values required to prevent undefined cosine distance in pgvector
   void content; // Suppress unused variable warning
-  return new Array(1536).fill(0.0);
+  return new Array(1536).fill(0).map(() => (Math.random() - 0.5) * 0.001);
 }
 
 // ============================================================================
@@ -352,6 +353,18 @@ export async function searchMemories(
 
     // Generate embedding for the search query
     const queryEmbedding = await generateEmbedding(query);
+
+    // Defensive check: detect zero or near-zero embeddings (undefined cosine distance)
+    const embeddingMagnitude = Math.sqrt(
+      queryEmbedding.reduce((sum, val) => sum + val * val, 0)
+    );
+    if (embeddingMagnitude < 1e-10) {
+      throw new MemoryError(
+        "Generated embedding has near-zero magnitude; cosine similarity is undefined",
+        "EMBEDDING_ERROR",
+        { embeddingMagnitude }
+      );
+    }
 
     // Convert embedding array to pgvector format string
     const embeddingStr = `[${queryEmbedding.join(',')}]`;
