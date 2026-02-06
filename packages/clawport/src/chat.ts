@@ -4,65 +4,131 @@ import { parse } from 'yaml';
 import chalk from 'chalk';
 import { input } from '@inquirer/prompts';
 import { DATA_DIR } from './utils.js';
+import { slugify } from './create.js';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
 
-function parseDataStream(chunk: string): string | null {
-  // Simple parser for AI SDK Data Stream Protocol (0:"text")
-  // This is a naive implementation and might need robustness for split chunks
-  // Protocol: 
-  // 0: text part
-  // e: error
-  // d: data
+// Interface for Docker Compose file structure
+interface ComposeFile {
+  services?: Record<string, {
+    ports?: (string | number)[];
+    [key: string]: unknown;
+  }>;
+  [key: string]: unknown;
+}
+
+// Type guard for ComposeFile
+function isComposeFile(obj: unknown): obj is ComposeFile {
+  if (typeof obj !== 'object' || obj === null) {
+    return false;
+  }
+  const maybeCompose = obj as Record<string, unknown>;
+  // services is optional, but if present must be an object
+  if ('services' in maybeCompose && maybeCompose.services !== undefined) {
+    if (typeof maybeCompose.services !== 'object' || maybeCompose.services === null) {
+      return false;
+    }
+  }
+  return true;
+}
+
+interface ParseResult {
+  text: string;
+  remainder: string;
+}
+
+/**
+ * Stateful parser for AI SDK Data Stream Protocol (0:"text")
+ * Handles partial JSON values when chunks split lines.
+ * 
+ * @param chunk - Current chunk of data
+ * @param prevRemainder - Incomplete line from previous chunk
+ * @returns Object with parsed text and remainder for next call
+ */
+function parseDataStream(chunk: string, prevRemainder: string = ''): ParseResult {
+  // Prepend any incomplete line from the previous chunk
+  const data = prevRemainder + chunk;
+  const lines = data.split('\n');
   
-  // We only care about 0 (text)
-  const lines = chunk.split('\n');
   let text = '';
+  let remainder = '';
+  
+  // The last element might be incomplete (no trailing newline)
+  // Keep it as remainder for the next chunk
+  if (!data.endsWith('\n') && lines.length > 0) {
+    remainder = lines.pop() || '';
+  }
   
   for (const line of lines) {
+    // Protocol: 0: text part, e: error, d: data
+    // We only care about 0 (text)
     if (line.startsWith('0:')) {
       try {
         // Remove 0: and parse JSON string
         // 0:"hello" -> hello
-        const content = JSON.parse(line.slice(2));
+        const content = JSON.parse(line.slice(2)) as string;
         text += content;
-      } catch (e) {
-        // Ignore parse errors (maybe incomplete chunk)
+      } catch {
+        // Ignore parse errors - line might still be malformed
+        // This shouldn't happen if we're handling remainders correctly
       }
     }
   }
-  return text || null;
+  
+  return { text, remainder };
+}
+
+/**
+ * Extract host port from a Docker port mapping string.
+ * Handles both two-part (8000:80) and three-part (0.0.0.0:8000:80) mappings.
+ * 
+ * @param mapping - Port mapping string like "8000:80" or "0.0.0.0:8000:80"
+ * @returns The host port as string, or empty string if not found
+ */
+function extractHostPort(mapping: string): string {
+  const parts = mapping.split(':');
+  if (parts.length >= 2) {
+    // For "8000:80" -> parts = ["8000", "80"], take parts[0] = "8000"
+    // For "0.0.0.0:8000:80" -> parts = ["0.0.0.0", "8000", "80"], take parts[1] = "8000"
+    // General rule: host port is second-to-last element
+    return parts[parts.length - 2] || '';
+  }
+  return '';
 }
 
 export async function chatAgent(name: string) {
-  const slug = name; // Assuming name is slug for list lookup simplicity, or we re-slugify
-  // But wait, user might type "My Agent".
-  // Let's rely on list logic: find dir matching slug.
-  // Actually, let's just use the exact name provided and try to resolve it.
+  // Normalize name to slug for directory lookup
+  const slug = slugify(name);
   
   const agentDir = join(DATA_DIR, slug);
   if (!await fs.pathExists(agentDir)) {
-    console.error(chalk.red(`Agent "${slug}" not found in data/`));
+    console.error(chalk.red(`Agent "${name}" (resolved to slug: "${slug}") not found in data/`));
     return;
   }
 
   // Find Port
   const composePath = join(agentDir, 'docker-compose.yml');
   const content = await fs.readFile(composePath, 'utf8');
-  const yaml = parse(content);
+  const parsedCompose: unknown = parse(content);
+  
+  // Validate the parsed YAML structure
+  if (!isComposeFile(parsedCompose)) {
+    console.error(chalk.red('Invalid docker-compose.yml structure.'));
+    return;
+  }
   
   // Find Traefik HTTP Port
   const traefikName = `${slug}-traefik`;
-  const traefikService = yaml.services?.[traefikName];
+  const traefikService = parsedCompose.services?.[traefikName];
   let port = '';
   
   if (traefikService?.ports) {
     for (const mapping of traefikService.ports) {
       if (typeof mapping === 'string' && mapping.endsWith(':80')) {
-        port = mapping.split(':')[0] || '';
+        port = extractHostPort(mapping);
       }
     }
   }
@@ -110,24 +176,29 @@ export async function chatAgent(name: string) {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let assistantMessage = '';
+      let remainder = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
         const chunk = decoder.decode(value, { stream: true });
-        // Handle Vercel AI SDK Data Stream
-        // If the server returns raw text (not Data Stream), this parser will fail.
-        // But the Gateway uses .toDataStreamResponse(), so it should be the protocol.
+        // Handle Vercel AI SDK Data Stream with stateful parsing
+        const result = parseDataStream(chunk, remainder);
+        remainder = result.remainder;
         
-        const text = parseDataStream(chunk);
-        if (text) {
-          process.stdout.write(text);
-          assistantMessage += text;
-        } else {
-          // Fallback if not using data stream protocol?
-          // If the chunk doesn't match the protocol, maybe it's raw text?
-          // Let's assume protocol for now.
+        if (result.text) {
+          process.stdout.write(result.text);
+          assistantMessage += result.text;
+        }
+      }
+      
+      // Process any remaining content after stream ends
+      if (remainder) {
+        const finalResult = parseDataStream(remainder + '\n', '');
+        if (finalResult.text) {
+          process.stdout.write(finalResult.text);
+          assistantMessage += finalResult.text;
         }
       }
       

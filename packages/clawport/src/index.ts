@@ -34,7 +34,7 @@ program
   .command('create')
   .argument('<name>', 'Name of the agent')
   .description('Create a new agent with isolated ports')
-  .action(async (name) => {
+  .action(async (name: string) => {
     try {
       await createAgent(name);
     } catch (e) {
@@ -59,7 +59,7 @@ program
   .command('chat')
   .argument('<name>', 'Name/Slug of the agent')
   .description('Chat with an agent via CLI')
-  .action(async (name) => {
+  .action(async (name: string) => {
     try {
       await chatAgent(name);
     } catch (e) {

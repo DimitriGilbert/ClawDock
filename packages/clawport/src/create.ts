@@ -16,6 +16,9 @@ import {
 
 const execAsync = promisify(exec);
 
+// Maximum valid TCP port
+const MAX_PORT = 65535;
+
 export function slugify(text: string): string {
   return text
     .toString()
@@ -26,6 +29,49 @@ export function slugify(text: string): string {
     .replace(/\-\-+/g, '-')   // Replace multiple - with single -
     .replace(/^-+/, '')       // Trim - from start of text
     .replace(/-+$/, '');      // Trim - from end of text
+}
+
+// Interface for Docker Compose file structure
+interface ComposeFile {
+  services?: Record<string, {
+    ports?: (string | number)[];
+    [key: string]: unknown;
+  }>;
+  [key: string]: unknown;
+}
+
+// Type guard for ComposeFile
+function isComposeFile(obj: unknown): obj is ComposeFile {
+  if (typeof obj !== 'object' || obj === null) {
+    return false;
+  }
+  const maybeCompose = obj as Record<string, unknown>;
+  if ('services' in maybeCompose && maybeCompose.services !== undefined) {
+    if (typeof maybeCompose.services !== 'object' || maybeCompose.services === null) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Extract host port from a Docker port mapping string.
+ * Handles both two-part (8000:80) and three-part (0.0.0.0:8000:80) mappings.
+ */
+function extractHostPort(mapping: string): number | null {
+  const parts = mapping.split(':');
+  if (parts.length >= 2) {
+    // For "8000:80" -> parts[0] = "8000"
+    // For "0.0.0.0:8000:80" -> parts[1] = "8000"
+    const portStr = parts[parts.length - 2];
+    if (portStr) {
+      const port = parseInt(portStr, 10);
+      if (!isNaN(port)) {
+        return port;
+      }
+    }
+  }
+  return null;
 }
 
 async function getUsedPorts(): Promise<Set<number>> {
@@ -42,18 +88,28 @@ async function getUsedPorts(): Promise<Set<number>> {
     if (await fs.pathExists(composePath)) {
       try {
         const content = await fs.readFile(composePath, 'utf8');
-        const yaml = parse(content);
+        const parsed: unknown = parse(content);
         
-        // Check Traefik ports
-        const traefikPorts = yaml.services?.traefik?.ports || [];
-        for (const portMapping of traefikPorts) {
-          if (typeof portMapping === 'string') {
-            const parts = portMapping.split(':');
-            const portStr = parts[0];
-            if (portStr) {
-              const hostPort = parseInt(portStr);
-              if (!isNaN(hostPort)) {
-                usedPorts.add(hostPort);
+        // Validate the parsed YAML structure
+        if (!isComposeFile(parsed)) {
+          console.warn(chalk.yellow(`Warning: Invalid compose structure in ${composePath}`));
+          continue;
+        }
+        
+        const services = parsed.services || {};
+        
+        // Iterate all services and find those ending with '-traefik'
+        for (const serviceName of Object.keys(services)) {
+          if (serviceName.endsWith('-traefik')) {
+            const traefikPorts = services[serviceName]?.ports || [];
+            for (const portMapping of traefikPorts) {
+              if (typeof portMapping === 'string') {
+                const hostPort = extractHostPort(portMapping);
+                if (hostPort !== null) {
+                  usedPorts.add(hostPort);
+                }
+              } else if (typeof portMapping === 'number') {
+                usedPorts.add(portMapping);
               }
             }
           }
@@ -75,6 +131,15 @@ async function allocatePorts(): Promise<AgentPorts> {
     // Check if this block is free
     const blockStart = base;
     const blockEnd = base + PORTS_PER_AGENT - 1;
+    
+    // Upper-bound guard: ensure we don't exceed valid TCP port range
+    if (blockEnd > MAX_PORT) {
+      throw new Error(
+        `Cannot allocate ports: next available block (${blockStart}-${blockEnd}) ` +
+        `exceeds maximum valid port ${MAX_PORT}. No available port blocks remaining.`
+      );
+    }
+    
     let collision = false;
     
     for (let p = blockStart; p <= blockEnd; p++) {
@@ -129,10 +194,11 @@ export async function createAgent(name: string) {
   let composeContent = templateRaw.replace(/clawdock/g, slug);
   
   // YAML Transformations for Ports and Build Context
-  const composeYaml = parse(composeContent);
+  const composeYaml = parse(composeContent) as Record<string, unknown>;
+  const services = composeYaml.services as Record<string, Record<string, unknown>> | undefined;
   
   // Update Traefik Ports
-  const traefikService = composeYaml.services[`${slug}-traefik`];
+  const traefikService = services?.[`${slug}-traefik`];
   if (traefikService) {
     traefikService.ports = [
       `${ports.http}:80`,
@@ -142,7 +208,7 @@ export async function createAgent(name: string) {
   }
 
   // Update Gateway Build Context
-  const gatewayService = composeYaml.services[`${slug}-gateway`];
+  const gatewayService = services?.[`${slug}-gateway`];
   if (gatewayService) {
     // Point to monorepo root
     gatewayService.build = {
@@ -155,7 +221,7 @@ export async function createAgent(name: string) {
   }
   
   // Update Opencode ports
-  const opencodeService = composeYaml.services[`${slug}-opencode`];
+  const opencodeService = services?.[`${slug}-opencode`];
   if (opencodeService) {
     // Map host port for external access if needed, or keep internal
     // The template has labels for Traefik, but we might want direct access for CLI
@@ -182,7 +248,24 @@ OPENAI_API_KEY=
   await fs.writeFile(join(agentDir, 'agents/GOALS.md'), `# Goals\n\n1. Exist.`);
   await fs.writeFile(join(agentDir, 'agents/REFLECTION.md'), `# Reflection\n\nSelf-awareness log.`);
 
-  // 6. Git Init
+  // 6. Create .gitignore to exclude sensitive files
+  const gitignoreContent = `# Sensitive files - do not commit
+.env
+.env.local
+.env.*.local
+
+# Docker volumes
+data/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+`;
+  await fs.writeFile(join(agentDir, '.gitignore'), gitignoreContent);
+
+  // 7. Git Init
   try {
     console.log(chalk.gray('Initializing git repository...'));
     await execAsync('git init', { cwd: agentDir });
