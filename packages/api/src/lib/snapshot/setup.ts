@@ -1,11 +1,9 @@
-import { execFile } from "node:child_process";
 import { mkdir, writeFile, access } from "node:fs/promises";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { env } from "@ClawDock/env/server";
 import { db, snapshotSettings } from "@ClawDock/db";
-
-const execFileAsync = promisify(execFile);
+import { ensureGitRepo } from "./git";
+import { SNAPSHOT_SETTINGS_ID } from "./service";
 
 /**
  * .gitignore template for agent data directory
@@ -41,41 +39,6 @@ data/files/
 `;
 
 /**
- * Ensures a git repository is initialized at the agent data path
- * @param agentDataPath - Path to the agent data directory
- */
-export async function ensureGitRepo(agentDataPath: string): Promise<void> {
-  const gitDir = join(agentDataPath, ".git");
-
-  try {
-    // Check if .git directory already exists
-    await access(gitDir);
-    // If we can access it, repo exists
-    return;
-  } catch {
-    // .git directory doesn't exist, need to initialize
-  }
-
-  // Ensure the agent data directory exists
-  await mkdir(agentDataPath, { recursive: true });
-
-  // Initialize git repository
-  await execFileAsync("git", ["init"], { cwd: agentDataPath });
-
-  // Configure git user for commits (required for commits to work)
-  await execFileAsync(
-    "git",
-    ["config", "user.email", "clawdock@local"],
-    { cwd: agentDataPath }
-  );
-  await execFileAsync(
-    "git",
-    ["config", "user.name", "ClawDock"],
-    { cwd: agentDataPath }
-  );
-}
-
-/**
  * Ensures .gitignore file exists with proper exclusions
  * @param agentDataPath - Path to the agent data directory
  */
@@ -106,24 +69,23 @@ export async function ensureSnapshotsDirectory(agentDataPath: string): Promise<v
 
 /**
  * Ensures default snapshot settings exist in the database
- * Creates settings with default values if none exist
+ * Uses atomic upsert to prevent duplicate rows under concurrent requests
  */
 async function ensureDefaultSettings(): Promise<void> {
-  // Check if settings already exist
-  const existingSettings = await db.query.snapshotSettings.findFirst();
+  const now = new Date();
 
-  if (existingSettings) {
-    // Settings already exist, nothing to do
-    return;
-  }
-
-  // Create default settings
-  await db.insert(snapshotSettings).values({
-    maxSnapshots: 30,
-    preChangeCompose: true,
-    preChangeAgentFiles: true,
-    includeDatabase: true,
-  });
+  // Atomic upsert: insert or ignore on conflict (prevents duplicate rows under concurrent requests)
+  await db
+    .insert(snapshotSettings)
+    .values({
+      id: SNAPSHOT_SETTINGS_ID,
+      maxSnapshots: 30,
+      preChangeCompose: true,
+      preChangeAgentFiles: true,
+      includeDatabase: true,
+      updatedAt: now,
+    })
+    .onConflictDoNothing({ target: snapshotSettings.id });
 }
 
 /**

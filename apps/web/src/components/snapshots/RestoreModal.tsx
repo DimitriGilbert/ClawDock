@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -44,16 +44,22 @@ export function RestoreModal({
 }: RestoreModalProps) {
   const [includeDatabase, setIncludeDatabase] = useState(dbBackupPath !== undefined);
   const [isReady, setIsReady] = useState(false);
+  const previewDiffRef = useRef(onPreviewDiff);
+
+  // Keep ref updated with the latest callback
+  useEffect(() => {
+    previewDiffRef.current = onPreviewDiff;
+  }, [onPreviewDiff]);
 
   useEffect(() => {
     if (open) {
       setIsReady(false);
-      onPreviewDiff?.();
+      previewDiffRef.current?.();
       // Small delay to allow diff to load
       const timer = setTimeout(() => setIsReady(true), 300);
       return () => clearTimeout(timer);
     }
-  }, [open, onPreviewDiff]);
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

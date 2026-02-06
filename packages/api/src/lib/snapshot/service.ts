@@ -347,7 +347,16 @@ export async function listSnapshots(): Promise<Snapshot[]> {
 
   try {
     const manifest = await readManifest(agentDataPath);
-    return manifest.snapshots.map(entryToSnapshot);
+    return manifest.snapshots
+      .map(entryToSnapshot)
+      .sort((a, b) => {
+        const timeA = a.timestamp.getTime();
+        const timeB = b.timestamp.getTime();
+        // Handle invalid timestamps by treating them as older (sort to the end)
+        if (Number.isNaN(timeA)) return 1;
+        if (Number.isNaN(timeB)) return -1;
+        return timeB - timeA;
+      });
   } catch (error) {
     if (error instanceof SnapshotError) {
       throw error;
@@ -501,31 +510,37 @@ export async function pruneSnapshots(keepLast: number): Promise<number> {
 // ============================================================================
 
 /**
+ * Singleton ID for snapshot settings (fixed UUID ensures only one row exists)
+ */
+export const SNAPSHOT_SETTINGS_ID = '00000000-0000-0000-0000-000000000001';
+
+/**
  * Gets the current snapshot settings from the database
  *
- * If no settings exist, creates default settings.
+ * If no settings exist, creates default settings atomically using upsert.
  *
  * @returns Current snapshot settings
  * @throws SnapshotError if database operation fails
  */
 export async function getSettings(): Promise<SnapshotSettings> {
   try {
-    let settings = await db.query.snapshotSettings.findFirst();
+    const now = new Date();
 
-    if (!settings) {
-      // Create default settings
-      const [newSettings] = await db
-        .insert(snapshotSettings)
-        .values({
-          maxSnapshots: env.SNAPSHOT_RETENTION_COUNT,
-          preChangeCompose: true,
-          preChangeAgentFiles: true,
-          includeDatabase: true,
-        })
-        .returning();
-      
-      settings = newSettings;
-    }
+    // Atomic upsert: insert or ignore on conflict (prevents duplicate rows under concurrent requests)
+    await db
+      .insert(snapshotSettings)
+      .values({
+        id: SNAPSHOT_SETTINGS_ID,
+        maxSnapshots: env.SNAPSHOT_RETENTION_COUNT,
+        preChangeCompose: true,
+        preChangeAgentFiles: true,
+        includeDatabase: true,
+        updatedAt: now,
+      })
+      .onConflictDoNothing({ target: snapshotSettings.id });
+
+    // Retrieve the settings (either newly inserted or existing)
+    const settings = await db.query.snapshotSettings.findFirst();
 
     if (!settings) {
       throw new SnapshotError(

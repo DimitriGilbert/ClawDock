@@ -36,14 +36,18 @@ export function CreateSnapshotModal({
       return;
     }
 
-    await onCreate({
-      comment: comment.trim(),
-      includeDatabase,
-    });
+    try {
+      await onCreate({
+        comment: comment.trim(),
+        includeDatabase,
+      });
 
-    setComment("");
-    setIncludeDatabase(true);
-    onOpenChange(false);
+      setComment("");
+      setIncludeDatabase(true);
+      onOpenChange(false);
+    } catch (error) {
+      console.error("Failed to create snapshot:", error);
+    }
   };
 
   const handleClose = () => {
