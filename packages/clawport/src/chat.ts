@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { parse } from 'yaml';
 import chalk from 'chalk';
 import { input } from '@inquirer/prompts';
-import { DATA_DIR, isComposeFile } from './utils.js';
+import { DATA_DIR, isComposeFile, extractHostPort } from './utils.js';
 import { slugify } from './create.js';
 
 interface Message {
@@ -45,8 +45,10 @@ function parseDataStream(chunk: string, prevRemainder: string = ''): ParseResult
       try {
         // Remove 0: and parse JSON string
         // 0:"hello" -> hello
-        const content = JSON.parse(line.slice(2)) as string;
-        text += content;
+        const value = JSON.parse(line.slice(2));
+        if (typeof value === 'string') {
+          text += value;
+        }
       } catch {
         // Ignore parse errors - line might still be malformed
         // This shouldn't happen if we're handling remainders correctly
@@ -57,25 +59,7 @@ function parseDataStream(chunk: string, prevRemainder: string = ''): ParseResult
   return { text, remainder };
 }
 
-/**
- * Extract host port from a Docker port mapping string.
- * Handles both two-part (8000:80) and three-part (0.0.0.0:8000:80) mappings.
- * 
- * @param mapping - Port mapping string like "8000:80" or "0.0.0.0:8000:80"
- * @returns The host port as string, or empty string if not found
- */
-function extractHostPort(mapping: string): string {
-  const parts = mapping.split(':');
-  if (parts.length >= 2) {
-    // For "8000:80" -> parts = ["8000", "80"], take parts[0] = "8000"
-    // For "0.0.0.0:8000:80" -> parts = ["0.0.0.0", "8000", "80"], take parts[1] = "8000"
-    // General rule: host port is second-to-last element
-    return parts[parts.length - 2] || '';
-  }
-  return '';
-}
-
-export async function chatAgent(name: string) {
+export async function chatAgent(name: string): Promise<void> {
   // Normalize name to slug for directory lookup
   const slug = slugify(name);
   
@@ -126,11 +110,20 @@ export async function chatAgent(name: string) {
   const sessionId = Date.now().toString();
 
   while (true) {
-    const userContent = await input({ message: chalk.green('You:') });
-    
-    if (userContent.toLowerCase() === 'exit') break;
+    let userContent: string;
+    try {
+      userContent = await input({ message: chalk.green('You:') });
 
-    messages.push({ role: 'user', content: userContent });
+      if (userContent.toLowerCase() === 'exit') {
+        break;
+      }
+
+      messages.push({ role: 'user', content: userContent });
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      console.error(chalk.red(`\nError: ${errorMessage}`));
+      break;
+    }
 
     try {
       const response = await fetch(endpoint, {
@@ -186,7 +179,8 @@ export async function chatAgent(name: string) {
       messages.push({ role: 'assistant', content: assistantMessage });
 
     } catch (e) {
-      console.error(chalk.red(`\nError: ${(e as Error).message}`));
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      console.error(chalk.red(`\nError: ${errorMessage}`));
     }
   }
 }

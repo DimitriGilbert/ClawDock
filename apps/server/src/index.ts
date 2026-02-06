@@ -177,6 +177,8 @@ if (heartbeatEnabled) {
 }
 
 // Graceful shutdown handling
+let server: ReturnType<typeof serve> | undefined = undefined;
+
 const shutdown = async (signal: string): Promise<void> => {
   console.log(`Received ${signal}, shutting down gracefully...`);
 
@@ -190,13 +192,14 @@ const shutdown = async (signal: string): Promise<void> => {
     }
   }
 
+  if (server) {
+    await server.close();
+  }
+
   process.exit(0);
 };
 
-process.on("SIGTERM", () => void shutdown("SIGTERM"));
-process.on("SIGINT", () => void shutdown("SIGINT"));
-
-serve(
+server = serve(
   {
     fetch: app.fetch,
     port: 3002,
@@ -205,3 +208,6 @@ serve(
     console.log(`Server is running on http://localhost:${info.port}`);
   },
 );
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));

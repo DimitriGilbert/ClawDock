@@ -73,17 +73,19 @@ export function parseInterval(interval: string): number {
   }
 
   const value = parseInt(valueStr, 10);
-  if (value <= 0) {
-    return 60000; // Enforce minimum 1 minute
+  if (value <= 0 || !Number.isFinite(value) || !Number.isSafeInteger(value)) {
+    return 60000; // Enforce minimum and safety
   }
+
+  const MAX_SAFE_INTERVAL = 365 * 24 * 60 * 60 * 1000; // 1 year in ms
 
   switch (unit) {
     case 's':
-      return value * 1000;
+      return Math.min(value * 1000, MAX_SAFE_INTERVAL);
     case 'm':
-      return value * 60 * 1000;
+      return Math.min(value * 60 * 1000, MAX_SAFE_INTERVAL);
     case 'h':
-      return value * 60 * 60 * 1000;
+      return Math.min(value * 60 * 60 * 1000, MAX_SAFE_INTERVAL);
     default:
       return 60000;
   }

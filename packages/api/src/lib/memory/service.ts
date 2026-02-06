@@ -39,8 +39,8 @@ const queryResultSchema = z.object({
   content: z.string(),
   memoryType: z.enum(['fact', 'conversation', 'entity', 'preference']),
   source: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
   metadata: z.record(z.string(), z.unknown()).nullable(),
   distance: z.number(),
 });
@@ -403,8 +403,8 @@ export async function searchMemories(
         content: validatedRow.content,
         memoryType: validatedRow.memoryType,
         source: validatedRow.source,
-        createdAt: new Date(validatedRow.createdAt),
-        updatedAt: new Date(validatedRow.updatedAt),
+        createdAt: validatedRow.createdAt,
+        updatedAt: validatedRow.updatedAt,
         metadata: validatedRow.metadata ?? {},
         distance: validatedRow.distance,
       });
@@ -528,7 +528,7 @@ export async function getEntityById(id: string): Promise<Entity | null> {
  */
 export async function listEntities(options: ListEntitiesOptions = {}): Promise<Entity[]> {
   try {
-    const { type, limit = 50 } = options;
+    const { type, limit = 50, offset = 0 } = options;
 
     let query = db.select().from(entities);
 
@@ -538,7 +538,8 @@ export async function listEntities(options: ListEntitiesOptions = {}): Promise<E
 
     const result = await query
       .orderBy(desc(entities.createdAt))
-      .limit(limit);
+      .limit(limit)
+      .offset(offset);
 
     return result;
   } catch (error) {
@@ -590,27 +591,7 @@ export async function linkMemoryToEntity(
       );
     }
 
-    // Check if link already exists
-    const existingLink = await db
-      .select()
-      .from(memoryEntities)
-      .where(
-        and(
-          eq(memoryEntities.memoryId, memoryId),
-          eq(memoryEntities.entityId, entityId)
-        )
-      )
-      .limit(1);
-
-    if (existingLink.length > 0) {
-      throw new MemoryError(
-        "This memory-entity link already exists",
-        "LINK_EXISTS",
-        { memoryId, entityId }
-      );
-    }
-
-    // Create the link
+    // Create link with atomic conflict detection
     const [created] = await db
       .insert(memoryEntities)
       .values({
@@ -618,12 +599,14 @@ export async function linkMemoryToEntity(
         entityId,
         relationship: relationship ?? "mentions",
       })
+      .onConflictDoNothing()
       .returning();
 
+    // Detect if link already existed (no row returned)
     if (!created) {
       throw new MemoryError(
-        "Failed to create memory-entity link - no link returned",
-        "DB_ERROR",
+        "This memory-entity link already exists",
+        "LINK_EXISTS",
         { memoryId, entityId }
       );
     }

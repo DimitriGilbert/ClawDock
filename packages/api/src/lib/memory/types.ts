@@ -34,6 +34,8 @@ export interface ListEntitiesOptions {
   type?: string;
   /** Maximum number of entities to return */
   limit?: number;
+  /** Number of entities to skip (for pagination) */
+  offset?: number;
 }
 
 /**

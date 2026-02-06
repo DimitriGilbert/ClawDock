@@ -54,6 +54,7 @@ interface BayItem {
 export class HeartbeatDaemon {
   private config: HeartbeatConfig | null = null;
   private intervalHandle: NodeJS.Timeout | null = null;
+  private isPolling = false;
   private status: HeartbeatStatus = {
     running: false,
     startedAt: null,
@@ -92,17 +93,18 @@ export class HeartbeatDaemon {
 
     const intervalMs = parseInterval(this.config.interval);
 
-    // Perform initial poll immediately (before marking as running)
+    // Initialize status before first poll so first poll's bookkeeping is preserved
+    this.status.running = true;
+    this.status.startedAt = new Date();
+    this.status.totalPolls = 0;
+    this.status.results = [];
+
+    // Perform initial poll immediately
     try {
       await this.poll();
     } catch (error) {
       console.error('[Heartbeat] Initial poll failed, but continuing:', error);
     }
-
-    this.status.running = true;
-    this.status.startedAt = new Date();
-    this.status.totalPolls = 0;
-    this.status.results = [];
 
     // Schedule recurring polls
     this.intervalHandle = setInterval(() => {
@@ -165,28 +167,39 @@ export class HeartbeatDaemon {
       return;
     }
 
-    const pollTimestamp = new Date();
-    this.status.lastPollAt = pollTimestamp;
-    this.status.totalPolls++;
+    // Prevent concurrent polls - return immediately if already polling
+    if (this.isPolling) {
+      console.warn('[Heartbeat] Poll already in progress, skipping');
+      return;
+    }
 
-    console.log(`[Heartbeat] Poll #${this.status.totalPolls} starting`);
+    this.isPolling = true;
+    try {
+      const pollTimestamp = new Date();
+      this.status.lastPollAt = pollTimestamp;
+      this.status.totalPolls++;
 
-    for (const [bayName, bayConfig] of Object.entries(this.config.bays)) {
-      if (!bayConfig.enabled) {
-        console.log(`[Heartbeat] Skipping disabled bay: ${bayName}`);
-        continue;
+      console.log(`[Heartbeat] Poll #${this.status.totalPolls} starting`);
+
+      for (const [bayName, bayConfig] of Object.entries(this.config.bays)) {
+        if (!bayConfig.enabled) {
+          console.log(`[Heartbeat] Skipping disabled bay: ${bayName}`);
+          continue;
+        }
+
+        const result = await this.pollBay(bayName, bayConfig);
+
+        // Keep last 10 results (circular buffer pattern)
+        this.status.results = [result, ...this.status.results].slice(0, 10);
+
+        if (result.itemsFound > 0 || result.errors.length > 0) {
+          console.log(
+            `[Heartbeat] Bay "${bayName}": ${result.itemsFound} items, ${result.tasksCreated} tasks, ${result.errors.length} errors`
+          );
+        }
       }
-
-      const result = await this.pollBay(bayName, bayConfig);
-
-      // Keep last 10 results (circular buffer pattern)
-      this.status.results = [result, ...this.status.results].slice(0, 10);
-
-      if (result.itemsFound > 0 || result.errors.length > 0) {
-        console.log(
-          `[Heartbeat] Bay "${bayName}": ${result.itemsFound} items, ${result.tasksCreated} tasks, ${result.errors.length} errors`
-        );
-      }
+    } finally {
+      this.isPolling = false;
     }
   }
 
@@ -337,14 +350,34 @@ export class HeartbeatDaemon {
 
         case 'pattern':
           // Regex pattern matching (case-insensitive)
-          try {
-            const regex = trigger.value ? new RegExp(trigger.value, 'i') : null;
-            isMatch = regex !== null && regex.test(item.content);
-          } catch {
-            // Invalid regex pattern - treat as no match
-            console.warn(
-              `[Heartbeat] Invalid regex pattern: ${trigger.value}`
-            );
+          // ReDoS protection: validate pattern before constructing RegExp
+          if (trigger.value) {
+            const patternLength = trigger.value.length;
+            // Enforce max length and basic complexity checks
+            if (patternLength > 1000) {
+              console.warn(
+                `[Heartbeat] Pattern too long (${patternLength} chars), treating as no-match`
+              );
+              isMatch = false;
+            } else if (/[^\\w\s\.\-\+\[\]\(\)\{\}\|\$\^\*\?\!\=]/.test(trigger.value)) {
+              // Only allow safe characters: word chars, spaces, basic regex metachars
+              // Block: quantifiers like {n,m}, lookaheads, backreferences, etc.
+              console.warn(
+                `[Heartbeat] Pattern contains unsafe characters, treating as no-match: ${trigger.value.slice(0, 50)}`
+              );
+              isMatch = false;
+            } else {
+              try {
+                const regex = new RegExp(trigger.value, 'i');
+                isMatch = regex.test(item.content);
+              } catch {
+                console.warn(
+                  `[Heartbeat] Invalid regex pattern: ${trigger.value.slice(0, 50)}`
+                );
+                isMatch = false;
+              }
+            }
+          } else {
             isMatch = false;
           }
           break;
