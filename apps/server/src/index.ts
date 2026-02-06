@@ -134,6 +134,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import { initializeSnapshotSystem } from "@ClawDock/api/lib/snapshot/setup";
+import { getHeartbeatDaemon } from "@ClawDock/api/lib/heartbeat/service";
 
 // Serve static assets in production
 if (env.NODE_ENV === "production") {
@@ -159,6 +160,41 @@ try {
   console.error("Failed to initialize snapshot system:", error);
   // Continue starting the server even if snapshot initialization fails
 }
+
+// Initialize heartbeat daemon in production mode
+const heartbeatEnabled =
+  env.NODE_ENV === "production" && process.env.HEARTBEAT_ENABLED !== "false";
+
+if (heartbeatEnabled) {
+  try {
+    const heartbeat = getHeartbeatDaemon();
+    await heartbeat.start();
+    console.log("Heartbeat daemon started successfully");
+  } catch (error) {
+    console.error("Failed to start heartbeat daemon:", error);
+    // Continue starting server even if heartbeat fails
+  }
+}
+
+// Graceful shutdown handling
+const shutdown = async (signal: string): Promise<void> => {
+  console.log(`Received ${signal}, shutting down gracefully...`);
+
+  if (heartbeatEnabled) {
+    try {
+      const heartbeat = getHeartbeatDaemon();
+      await heartbeat.stop();
+      console.log("Heartbeat daemon stopped");
+    } catch (error) {
+      console.error("Error stopping heartbeat:", error);
+    }
+  }
+
+  process.exit(0);
+};
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
 
 serve(
   {

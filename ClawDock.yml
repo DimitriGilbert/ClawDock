@@ -129,8 +129,8 @@ services:
   #
   gateway:
     build:
-      context: ./workspace/apps/gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/server/Dockerfile
     container_name: clawdock-gateway
     environment:
       - NODE_ENV=production
@@ -170,10 +170,10 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.gateway.rule=Host(`gateway.localhost`)"
       - "traefik.http.routers.gateway.entrypoints=web"
-      - "traefik.http.services.gateway.loadbalancer.server.port=3000"
+      - "traefik.http.services.gateway.loadbalancer.server.port=3002"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
       interval: 30s
       timeout: 10s
       retries: 3
