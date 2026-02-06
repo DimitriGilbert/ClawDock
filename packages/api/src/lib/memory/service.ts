@@ -28,6 +28,24 @@ import type {
   UpdateMemoryFields,
   MemorySearchResult,
 } from "./types";
+import { z } from "zod";
+
+// ============================================================================
+// Zod Schema for Query Results
+// ============================================================================
+
+const queryResultSchema = z.object({
+  id: z.string(),
+  content: z.string(),
+  memoryType: z.enum(['fact', 'conversation', 'entity', 'preference']),
+  source: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
+  distance: z.number(),
+});
+
+type QueryResult = z.infer<typeof queryResultSchema>;
 
 // ============================================================================
 // Embedding Generation (Stub)
@@ -46,7 +64,7 @@ async function generateEmbedding(content: string): Promise<number[]> {
   // TODO: Replace with actual OpenAI/embedding provider call
   // Returns 1536-dimension placeholder for ada-002 compatibility
   void content; // Suppress unused variable warning
-  return new Array(1536).fill(0.0) as number[];
+  return new Array(1536).fill(0.0);
 }
 
 // ============================================================================
@@ -355,20 +373,27 @@ export async function searchMemories(
       LIMIT ${limit}
     `);
 
-    // Map raw results to typed MemorySearchResult
+    // Map raw results to typed MemorySearchResult using Zod schema validation
     const typedResults: MemorySearchResult[] = [];
-    
+
     for (const row of results.rows) {
-      const typedRow = row as Record<string, unknown>;
+      const parseResult = queryResultSchema.safeParse(row);
+      if (!parseResult.success) {
+        throw new MemoryError(
+          `Failed to parse query result: ${parseResult.error.message}`,
+          "VALIDATION_ERROR"
+        );
+      }
+      const validatedRow: QueryResult = parseResult.data;
       typedResults.push({
-        id: typedRow.id as string,
-        content: typedRow.content as string,
-        memoryType: typedRow.memoryType as MemoryType,
-        source: typedRow.source as string | null,
-        createdAt: new Date(typedRow.createdAt as string),
-        updatedAt: new Date(typedRow.updatedAt as string),
-        metadata: (typedRow.metadata as Record<string, unknown>) ?? {},
-        distance: Number(typedRow.distance),
+        id: validatedRow.id,
+        content: validatedRow.content,
+        memoryType: validatedRow.memoryType,
+        source: validatedRow.source,
+        createdAt: new Date(validatedRow.createdAt),
+        updatedAt: new Date(validatedRow.updatedAt),
+        metadata: validatedRow.metadata ?? {},
+        distance: validatedRow.distance,
       });
     }
 

@@ -25,7 +25,7 @@ services:
   # Routes external traffic to internal services. Separate from Gateway for
   # resilience - if Gateway crashes, other services remain accessible.
   #
-  traefik:
+  clawdock-traefik:
     image: traefik:v3.0
     container_name: clawdock-traefik
     command:

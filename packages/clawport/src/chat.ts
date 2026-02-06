@@ -157,7 +157,7 @@ export async function chatAgent(name: string) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Host': 'gateway.localhost' // Crucial for Traefik routing
+          'Host': `gateway.${slug}.localhost` // Crucial for Traefik routing
         },
         body: JSON.stringify({
           messages,

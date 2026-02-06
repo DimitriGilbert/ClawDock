@@ -189,10 +189,23 @@ export async function createAgent(name: string) {
 
   // 3. Generate Docker Compose
   const templateRaw = await fs.readFile(TEMPLATE_PATH, 'utf8');
-  
-  // Basic String Replacement
-  let composeContent = templateRaw.replace(/clawdock/g, slug);
-  
+
+  // Targeted String Replacements (avoid global replace to protect DB credentials and labels)
+  let composeContent = templateRaw
+    // Replace service names and container names
+    .replace(/clawdock-traefik/g, `${slug}-traefik`)
+    .replace(/clawdock-postgres/g, `${slug}-postgres`)
+    .replace(/clawdock-opencode/g, `${slug}-opencode`)
+    .replace(/clawdock-gateway/g, `${slug}-gateway`)
+    // Replace network and volume names
+    .replace(/clawdock-network/g, `${slug}-network`)
+    .replace(/clawdock-postgres-data/g, `${slug}-postgres-data`)
+    // Update Traefik routing rules to use per-agent hostname pattern
+    .replace(/Host\(`gateway\.localhost`\)/g, `Host(\`gateway.${slug}.localhost\`)`)
+    .replace(/Host\(`opencode\.localhost`\)/g, `Host(\`opencode.${slug}.localhost\`)`)
+    // Replace project name at top level
+    .replace(/^name: clawdock$/m, `name: ${slug}`);
+
   // YAML Transformations for Ports and Build Context
   const composeYaml = parse(composeContent) as Record<string, unknown>;
   const services = composeYaml.services as Record<string, Record<string, unknown>> | undefined;

@@ -13,7 +13,7 @@ pnpm --filter @ClawDock/clawport build
 # Define test variables
 TEST_AGENT_NAME="Test Agent Alpha"
 TEST_AGENT_SLUG="test-agent-alpha"
-DATA_DIR="../../data"
+DATA_DIR="./data"
 AGENT_DIR="$DATA_DIR/$TEST_AGENT_SLUG"
 
 # Clean up previous run if exists
