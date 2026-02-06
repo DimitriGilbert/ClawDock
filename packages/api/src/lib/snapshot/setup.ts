@@ -79,7 +79,7 @@ async function ensureDefaultSettings(): Promise<void> {
     .insert(snapshotSettings)
     .values({
       id: SNAPSHOT_SETTINGS_ID,
-      maxSnapshots: 30,
+      maxSnapshots: env.SNAPSHOT_RETENTION_COUNT,
       preChangeCompose: true,
       preChangeAgentFiles: true,
       includeDatabase: true,
