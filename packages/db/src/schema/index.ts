@@ -135,7 +135,7 @@ export const snapshots = pgTable(
 export const snapshotSettings = pgTable(
   'snapshot_settings',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id').primaryKey(),
     maxSnapshots: integer('max_snapshots').default(30).notNull(),
     preChangeCompose: boolean('pre_change_compose').default(true).notNull(),
     preChangeAgentFiles: boolean('pre_change_agent_files').default(true).notNull(),

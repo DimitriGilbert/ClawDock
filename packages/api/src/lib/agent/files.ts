@@ -23,6 +23,7 @@ import {
   isEditable,
 } from './types';
 import { createSnapshot, getSettings } from '../snapshot/service';
+import { SnapshotError } from '../snapshot/types';
 
 // Promisify execFile for async/await usage
 const execFileAsync = promisify(execFile);
@@ -150,15 +151,33 @@ export async function updateAgentFile(
   }
 
   // Check if pre-change snapshots are enabled
-  const settings = await getSettings();
+  try {
+    const settings = await getSettings();
 
-  if (settings.preChangeAgentFiles) {
-    await createSnapshot({
-      type: 'pre-change',
-      trigger: 'agent-file-edit',
-      comment: `Before editing ${filename}`,
-      includeDatabase: false, // Files only, no need for DB
-    });
+    if (settings.preChangeAgentFiles) {
+      await createSnapshot({
+        type: 'pre-change',
+        trigger: 'agent-file-edit',
+        comment: `Before editing ${filename}`,
+        includeDatabase: false, // Files only, no need for DB
+      });
+    }
+  } catch (error) {
+    // Convert SnapshotError to AgentFileError to maintain contract
+    if (error instanceof SnapshotError) {
+      throw createAgentFileError(
+        `Snapshot failed before file update: ${error.message}`,
+        'WRITE_ERROR',
+        filename,
+      );
+    }
+    // Re-throw other errors as AgentFileError
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    throw createAgentFileError(
+      `Pre-change snapshot failed: ${errorMessage}`,
+      'WRITE_ERROR',
+      filename,
+    );
   }
 
   try {
